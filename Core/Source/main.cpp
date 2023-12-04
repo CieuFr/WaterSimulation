@@ -13,7 +13,9 @@
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+void mouse_move_callback(GLFWwindow* window, double xpos, double ypos);
+void mouse_click_callback(GLFWwindow* window, int button, int action, int mods);
+
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 // settings
@@ -52,7 +54,8 @@ int main()
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetCursorPosCallback(window, mouse_move_callback);
+    glfwSetMouseButtonCallback(window, mouse_click_callback);
     glfwSetScrollCallback(window, scroll_callback);
     glfwSwapInterval(0);
 
@@ -138,19 +141,29 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     // make sure the viewport matches the new window dimensions; note that width and 
     // height will be significantly larger than specified on retina displays.
-    glViewport(0, 0, width, height);
+    renderer.handleWindowResize(window, width, height);
 }
 
 // glfw: whenever the mouse moves, this callback is called
 // -------------------------------------------------------
-void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
+void mouse_move_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     if (!io.WantCaptureMouse) {
-        renderer.handleMouseEvents(window,xposIn, yposIn);
+        renderer.handleMouseMoveEvents(window,xposIn, yposIn);
     }
     
 }
+
+void mouse_click_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    if (!io.WantCaptureMouse) {
+        renderer.handleMouseClickEvents(window, button, action, mods);
+    }
+}
+
+
 
 // glfw: whenever the mouse scroll wheel scrolls, this callback is called
 // ----------------------------------------------------------------------

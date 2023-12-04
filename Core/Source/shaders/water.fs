@@ -24,16 +24,6 @@ struct IntersectInfo
     float fuzz;
     float refractionIndex;
 };
-    
-float schlick(float cos_theta, float n2)
-{
-    const float n1 = 1.0f;  // refraction index for air
-
-    float r0s = (n1 - n2) / (n1 + n2);
-    float r0 = r0s * r0s;
-
-    return r0 + (1.0f - r0) * pow((1.0f - cos_theta), 5.0f);
-}
 
 bool refractVec(vec3 v, vec3 n, float ni_over_nt, out vec3 refracted)
 {
@@ -79,7 +69,45 @@ vec3 reflectVec(vec3 v, vec3 n)
 
         return hit_anything;
 }*/
+/*
+bool intersectTriangle( const Ray & p_ray, float & p_t, Vec3f & p_n, float & p_u, float & p_v ) const
+	{
+		const Vec3f & o	 = p_ray.getOrigin();
+		const Vec3f & d	 = p_ray.getDirection();
+		const Vec3f & v0 = _refMesh->_vertices[ _v0 ];
+		const Vec3f & v1 = _refMesh->_vertices[ _v1 ];
+		const Vec3f & v2 = _refMesh->_vertices[ _v2 ];
 
+		Vec3f edge1, edge2, tvec, pvec, qvec;
+		float det, inv_det, t, u, v;
+		edge1 = v1 - v0;
+		edge2 = v2 - v0;
+		pvec  = glm::cross( d, edge2 );
+		det	  = glm::dot( edge1, pvec );
+
+		
+		if ( det > -_epsilon && det < _epsilon ) return 0;
+		inv_det = 1.f / det;
+		tvec	= o - v0;
+		u		= glm::dot( tvec, pvec ) * inv_det;
+		if ( u < 0 || u > 1 ) return false;
+		qvec = glm::cross( tvec, edge1 );
+		v	 = glm::dot( d, qvec ) * inv_det;
+		if ( v < 0 || u + v > 1 ) return false;
+		t = glm::dot( edge2, qvec ) * inv_det;
+		
+		p_t		 = t;
+		p_u		 = u;
+		p_v		 = v;
+		Vec3f n0 = _refMesh->_normals[ _v0 ];
+		Vec3f n1 = _refMesh->_normals[ _v1 ];
+		Vec3f n2 = _refMesh->_normals[ _v2 ];
+		Vec3f n	 = ( 1 - u - v ) * n0 + u * n1 + v * n2;
+		p_n		 = n;
+
+		return true;
+	}
+    */
 vec3 radiance(Ray ray)
 {
     IntersectInfo rec;
@@ -88,40 +116,42 @@ vec3 radiance(Ray ray)
     int MAXDEPTH = 3;
     for(int i = 0; i < MAXDEPTH; i++)
     {
-        if (true)//intersectScene(ray, 0.001, MAXFLOAT, rec))
-        {
-            Ray wi;
-            vec3 attenuation;
+        // if (true)//intersectScene(ray, 0.001, MAXFLOAT, rec))
+        // {
+        //     Ray wi;
+        //     vec3 attenuation;
 
-            //bool wasScattered = Material_bsdf(rec, ray, wi, attenuation);
+        //     //bool wasScattered = Material_bsdf(rec, ray, wi, attenuation);
 
-            ray.origin = wi.origin;
-            ray.direction = wi.direction;
+        //     ray.origin = wi.origin;
+        //     ray.direction = wi.direction;
 
-            //if (wasScattered)
-            //    col *= attenuation;
-           // else
-            //{
-               // col *= vec3(0.0f, 0.0f, 0.0f);
-             //   break;
-           // }
-        }
-        else
-        {
-           // col *= skyColor(ray);
-            break;
-        }
+        //     if (wasScattered)
+        //        col *= attenuation;
+        //    else
+        //     {
+        //        col *= vec3(0.0f, 0.0f, 0.0f);
+        //        break;
+        //    }
+        // }
+        // else
+        // {
+        //     col *= skyColor(ray);
+        //     break;
+        // }
     }
 
     return col;
 }
 
-
-layout(std140, binding = 0) buffer QuadBuffer {
-    mat4 model;
-    vec3 color;
-} quads[];
-
+layout (binding = 0) uniform samplerBuffer triangleData;
+layout (binding = 1) uniform samplerBuffer modelLocsData;
+layout (binding = 2) uniform samplerBuffer modelScalesData;
+layout (binding = 3) uniform samplerBuffer modelColorsData;
+layout (binding = 4) uniform samplerBuffer modelRotationsData;
+layout (binding = 5) uniform isamplerBuffer modelNumTrianglesData;
+layout (binding = 7) uniform samplerBuffer modelInverseRotationsData;
+layout (binding = 6) uniform samplerBuffer randNums;
 
 // material parameters
 uniform vec3 albedo;
@@ -130,6 +160,8 @@ uniform float roughness;
 uniform float ao;
 uniform mat4 projection;
 uniform mat4 view;
+uniform vec2 resolution;
+uniform int samples;
 
 
 // lights
@@ -179,11 +211,30 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
-// ----------------------------------------------------------------------------
-void main()
-{		
-    vec3 N = normalize(Normal);
-    vec3 V = normalize(camPos - WorldPos);
+
+float schlick(float cos_theta, float n2)
+{
+    const float n1 = 1.0f;  // indice de refraction de l'air
+
+    float r0s = (n1 - n2) / (n1 + n2);
+    float r0 = r0s * r0s;
+
+    return r0 + (1.0f - r0) * pow((1.0f - cos_theta), 5.0f);
+}
+
+highp float rand(vec2 co)
+{
+    highp float a = 12.9898;
+    highp float b = 78.233;
+    highp float c = 43758.5453;
+    highp float dt= dot(co.xy ,vec2(a,b));
+    highp float sn= mod(dt,3.14);
+    return fract(sin(sn) * c);
+}
+ 
+vec3 shade(vec3 point, vec3 normal, vec3 camPos, vec3 albedo, float metallic, float roughness,vec3 lightPositions[4], vec3 lightColors[4]){
+    vec3 N = normalize(normal);
+    vec3 V = normalize(camPos - point);
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
@@ -225,9 +276,59 @@ void main()
         float NdotL = max(dot(N, L), 0.0);        
 
         // add to outgoing radiance Lo
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again 
     }   
+
+    return Lo;
+}
+
+
+// ----------------------------------------------------------------------------
+void main()
+{  
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec3 wo = (camPos - WorldPos);
+    vec3 vecteurIncident = (WorldPos - camPos);
+    Ray rayonIncident = Ray(WorldPos, vecteurIncident);
+    vec3 vecteurReflechi = reflectVec(vecteurIncident,Normal);
+    Ray rayonReflechi = Ray(WorldPos,vecteurReflechi);
+
+    vec3 vecteurRefracte;
+    float refractionIndex = 1.33f; // indice de refraction de l eau 
+    float ni_over_nt;
+    float reflect_prob = 1.0f;
+    vec3 outward_normal;
+    float cosine;
+
+    if (dot(wo, Normal) > 0.0f)
+    {
+        outward_normal = -Normal;
+        ni_over_nt = refractionIndex;
     
+        cosine = dot(wo,Normal) / length(wo);
+        cosine = sqrt(1.0f - refractionIndex * refractionIndex * (1.0f - cosine * cosine));
+    }
+    else
+    {
+        outward_normal = Normal;
+        ni_over_nt = 1.0f / refractionIndex;
+        cosine = -dot(wo,Normal) / length(wo);
+    }
+    
+    if(refractVec(vecteurIncident,outward_normal,ni_over_nt,vecteurRefracte)){
+        reflect_prob = schlick(cosine, refractionIndex);
+    }
+    if (rand(uv) < reflect_prob)
+    {
+        // reflechi
+    }
+    else
+    {
+        // refracte
+    }
+
+    vec3 Lo = shade(WorldPos,Normal,camPos,albedo,metallic,roughness,lightPositions,lightColors);
+
     // ambient lighting (note that the next IBL tutorial will replace 
     // this ambient lighting with environment lighting).
     vec3 ambient = vec3(0.03) * albedo * ao;
@@ -240,5 +341,6 @@ void main()
     color = pow(color, vec3(1.0/2.2)); 
 
     FragColor = vec4(color, 1.0);
+   
 }
 

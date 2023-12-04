@@ -118,7 +118,7 @@ void ComputeRenderer::handleEvents(GLFWwindow* window,float deltaTime)
 }
 
 
-void ComputeRenderer::handleMouseEvents(GLFWwindow* window, double xposIn, double yposIn)
+void ComputeRenderer::handleMouseMoveEvents(GLFWwindow* window, double xposIn, double yposIn)
 {
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
@@ -139,8 +139,26 @@ void ComputeRenderer::handleMouseEvents(GLFWwindow* window, double xposIn, doubl
     camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
+void ComputeRenderer::handleMouseClickEvents(GLFWwindow* window, int button, int action, int mods)
+{
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+       /* isAddDrop = true;
+        cameraRotEnabled = true;*/
+    }
+    else if (button == GLFW_RELEASE) {
+       /* cameraRotEnabled = false;*/
+    }
+}
+
 
 void ComputeRenderer::handleScrollEvents(GLFWwindow* window, double xoffset, double yoffset)
 {
     camera.ProcessMouseScroll(static_cast<float>(yoffset));
 }
+
+void ComputeRenderer::handleWindowResize(GLFWwindow* window, int width, int height) {
+    SCR_WIDTH = width;
+    SCR_HEIGHT = height;
+    glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+}
+

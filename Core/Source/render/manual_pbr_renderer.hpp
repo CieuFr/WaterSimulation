@@ -8,6 +8,10 @@
 #include "../utils/sphere.hpp"
 #include "../utils/cube.hpp"
 #include "../utils/quad.hpp"
+#include "../utils/water_surface.hpp"
+
+#include <glm/gtx/intersect.hpp>
+
 
 
 
@@ -21,14 +25,22 @@ public:
         glDeleteProgram(lightingShader->ID);
         glDeleteProgram(lightCubeShader->ID);
         glDeleteProgram(skyboxShader->ID);
-        glDeleteProgram(manualPBR->ID);
+        glDeleteProgram(waterShader->ID);
     }
 
+    //water parameter
+    const GLint sizeOfWater = 256;
+    const GLfloat TEXELSIZE = 1.0 / sizeOfWater;
+    bool userHasClicked = false;
+    float dropX;
+    float dropY;
 
+    GLuint inVAO, inVBO;
+   
 
     // settings
-    const unsigned int SCR_WIDTH = 800;
-    const unsigned int SCR_HEIGHT = 600;
+   unsigned int SCR_WIDTH = 800;
+   unsigned int SCR_HEIGHT = 600;
 
     // camera
     Camera camera;
@@ -58,11 +70,22 @@ public:
     Shader* lightingShader = NULL;
     Shader* lightCubeShader = NULL;
     Shader* skyboxShader = NULL;
-    Shader* manualPBR = NULL;
+    Shader* waterShader = NULL;
+    Shader* waterMovement = NULL;
+    Shader* dropOnWater = NULL;
+    Shader* debugTextureShader = NULL;
+    Shader* wallShader = NULL;
+    Shader* normalShader = NULL;
+
+
+
 
     Cube* cube = NULL;
     Skybox* skybox = NULL;
     Sphere* sphere  = NULL;
+    WaterSurface* water = NULL;
+    
+    Quad* defferedQuad = NULL;
 
     Quad* back = NULL;
     Quad* right = NULL;
@@ -75,6 +98,11 @@ public:
     Mat4f modelLeft = MAT4F_ID;
     Mat4f modelTop = MAT4F_ID;
     Mat4f modelBot = MAT4F_ID;
+
+    Mat4f modelWater = MAT4F_ID;
+    GLuint waterHeightFBO;
+    GLuint waterHeightTexture;
+
 
     Vec3f colorBack = Vec3f(1.f, 1.0f, 1.0f);
     Vec3f colorRight = Vec3f(0.f, 1.0f, 0.0f);
@@ -94,10 +122,18 @@ public:
     void handleEvents(GLFWwindow* window, float deltaTime) override;
     void displayUI() override;
     void handleScrollEvents(GLFWwindow* window, double xoffset, double yoffset) override;
-    void handleMouseEvents(GLFWwindow* window, double xposIn, double yposIn) override;
+    void handleMouseMoveEvents(GLFWwindow* window, double xposIn, double yposIn) override;
+    void handleMouseClickEvents(GLFWwindow* window, int button, int action, int mods) override;
+    void handleWindowResize(GLFWwindow* window, int width, int height) override;
+
   
     void renderCornellBox();
     void initCornellBox();
+
+    void initWater();
+    void renderWater();
+
+    bool isClickOnWater();
 
 
     struct QuadData {

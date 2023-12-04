@@ -25,8 +25,8 @@ public:
 
 
     // settings
-    const unsigned int SCR_WIDTH = 800;
-    const unsigned int SCR_HEIGHT = 600;
+   unsigned int SCR_WIDTH = 800;
+   unsigned int SCR_HEIGHT = 600;
 
     // camera
     Camera camera;
@@ -72,8 +72,10 @@ public:
     void handleEvents(GLFWwindow* window, float deltaTime) override;
     void displayUI() override;
     void handleScrollEvents(GLFWwindow* window, double xoffset, double yoffset) override;
-    void handleMouseEvents(GLFWwindow* window, double xposIn, double yposIn) override;
-  
+    void handleMouseMoveEvents(GLFWwindow* window, double xposIn, double yposIn) override;
+    void handleMouseClickEvents(GLFWwindow* window, int button, int action, int mods) override;
+    void handleWindowResize(GLFWwindow* window, int width, int height) override;
+ 
 
 
 

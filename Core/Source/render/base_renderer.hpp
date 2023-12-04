@@ -33,7 +33,11 @@ public:
     virtual void displayUI() = 0;
     virtual void handleEvents(GLFWwindow* window,float deltaTime) = 0;
     virtual void handleScrollEvents(GLFWwindow* window, double xoffset, double yoffset) = 0;
-    virtual void handleMouseEvents(GLFWwindow* window, double xposIn, double yposIn) = 0;
+    virtual void handleMouseMoveEvents(GLFWwindow* window, double xposIn, double yposIn) = 0;
+    virtual void handleMouseClickEvents(GLFWwindow* window, int button, int action, int mods) = 0;
+    virtual void handleWindowResize(GLFWwindow* window, int width, int height) = 0;
+
+
 
 
 private:
