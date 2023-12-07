@@ -4,14 +4,17 @@
 
 #include "base_renderer.hpp"
 
-#include "../utils/skybox.hpp"
-#include "../utils/sphere.hpp"
-#include "../utils/cube.hpp"
-#include "../utils/quad.hpp"
-#include "../utils/water_surface.hpp"
+#include "../objects/skybox.hpp"
+#include "../objects/sphere.hpp"
+#include "../objects/cube.hpp"
+#include "../objects/quad.hpp"
+#include "../objects/water_surface.hpp"
 
 #include <glm/gtx/intersect.hpp>
 
+#include"../utils/fbo.h"
+
+#include "../objects/heightfield.hpp"
 
 
 
@@ -77,8 +80,9 @@ public:
     Shader* wallShader = NULL;
     Shader* normalShader = NULL;
 
+    Framebuffer* framebo;
 
-
+    HeightField* heightfield = NULL;
 
     Cube* cube = NULL;
     Skybox* skybox = NULL;

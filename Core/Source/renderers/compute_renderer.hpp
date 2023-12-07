@@ -5,10 +5,7 @@
 #include "base_renderer.hpp"
 
 
-#include "../utils/quad.hpp"
-
-
-
+#include "../objects/quad.hpp"
 
 
 class ComputeRenderer : public BaseRenderer

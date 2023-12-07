@@ -1,33 +1,32 @@
-#ifndef TEST_RELFECTION_H
-#define TEST_RELFECTION_H
+#ifndef MANUAL_PBR_RENDERER_H
+#define MANUAL_PBR_RENDERER_H
 
 
 #include "base_renderer.hpp"
 
-#include "../utils/skybox.hpp"
-#include "../utils/sphere.hpp"
-#include "../utils/cube.hpp"
-#include "../utils/quad.hpp"
+#include "../objects/skybox.hpp"
+#include "../objects/sphere.hpp"
+#include "../objects/cube.hpp"
 
 
-
-class TestReflection : public BaseRenderer
+class IBLPBRRenderer : public BaseRenderer
 {
 public:
 
-    TestReflection() : BaseRenderer(){}
+    IBLPBRRenderer() : BaseRenderer(){}
 
-    ~TestReflection(){   
-        glDeleteProgram(colorShader->ID);
-        glDeleteProgram(reflectionShader->ID);
+    ~IBLPBRRenderer(){   
+        glDeleteProgram(lightingShader->ID);
+        glDeleteProgram(lightCubeShader->ID);
         glDeleteProgram(skyboxShader->ID);
-      
+        glDeleteProgram(manualPBR->ID);
     }
 
 
+
     // settings
-    unsigned int SCR_WIDTH = 800;
-    unsigned int SCR_HEIGHT = 600;
+   unsigned int SCR_WIDTH = 800;
+   unsigned int SCR_HEIGHT = 600;
 
     // camera
     Camera camera;
@@ -54,20 +53,14 @@ public:
     // build and compile our shader zprogram
    // ------------------------------------
     const std::string shaderFolder = "src/shaders/";
-    Shader* reflectionShader = NULL;
-    Shader* colorShader = NULL;
+    Shader* lightingShader = NULL;
+    Shader* lightCubeShader = NULL;
     Shader* skyboxShader = NULL;
+    Shader* manualPBR = NULL;
 
-
-    Sphere* sphere  = NULL;
-    Quad* back = NULL;
-    Quad* right = NULL;
-    Quad* left = NULL;
-    Quad* top = NULL;
-    Quad* bot = NULL;
-
+    Cube* cube = NULL;
     Skybox* skybox = NULL;
-
+    Sphere* sphere  = NULL;
 
     //IMGUI VARIABLES
     bool drawTriangle = true;
@@ -82,9 +75,8 @@ public:
     void handleMouseMoveEvents(GLFWwindow* window, double xposIn, double yposIn) override;
     void handleMouseClickEvents(GLFWwindow* window, int button, int action, int mods) override;
     void handleWindowResize(GLFWwindow* window, int width, int height) override;
+ 
 
-
-    void renderCornellBox();
 
 
 

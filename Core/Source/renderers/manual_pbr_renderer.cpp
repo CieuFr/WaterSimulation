@@ -27,7 +27,13 @@ void ManualPBRRenderer::init()
      cube = new Cube();
      skybox = new Skybox();
      sphere = new Sphere();
+    // water = new WaterSurface(10,10,2,0.2);
      water = new WaterSurface();
+
+     //heightfield = new HeightField();
+     //heightfield->setup(256,256);
+     //
+
 
      defferedQuad = new Quad();
 
@@ -150,6 +156,7 @@ void ManualPBRRenderer::initCornellBox() {
 
 }
 void ManualPBRRenderer::renderCornellBox() {
+   
     
     wallShader->use();
     wallShader->setMat4("view", view);
@@ -192,8 +199,7 @@ void ManualPBRRenderer::renderCornellBox() {
     wallShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(modelLeft))));
 
     left->render();
-
-
+    
 }
 
 
@@ -235,29 +241,55 @@ void ManualPBRRenderer::initWater() {
     waterMovement->use();
     dropOnWater->setInt("water", 0);
     
-    //Texture qui stock la surface d'eau
-    // Charger les données des positions des sommets dans la texture
     glGenFramebuffers(1, &waterHeightFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO);
 
+    // The texture we're going to render to
     glGenTextures(1, &waterHeightTexture);
+
+    // "Bind" the newly created texture : all future texture functions will modify this texture
     glBindTexture(GL_TEXTURE_2D, waterHeightTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 256, 0, GL_RGB, GL_UNSIGNED_BYTE, randomData);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, waterHeightTexture, 0);
 
-    unsigned int rbo;
-    glGenRenderbuffers(1, &rbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 256, 256);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-    // attach it to currently bound framebuffer object
+    // Give an empty image to OpenGL ( the last "0" )
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 256, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
+    // Set "renderedTexture" as our colour attachement #0
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, waterHeightTexture, 0);
+
+    // Set the list of draw buffers.
+    GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+    glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
+
+    // Always check that our framebuffer is ok
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    //Texture qui stock la surface d'eau
+    // Charger les données des positions des sommets dans la texture
+    //glGenFramebuffers(1, &waterHeightFBO);
+    //glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO);
+
+    //glGenTextures(1, &waterHeightTexture);
+    //glBindTexture(GL_TEXTURE_2D, waterHeightTexture);
+    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 256, 0, GL_RGB, GL_UNSIGNED_BYTE, randomData);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, waterHeightTexture, 0);
+
+    //unsigned int rbo;
+    //glGenRenderbuffers(1, &rbo);
+    //glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    //glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 256, 256);
+    //glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    //glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+    //// attach it to currently bound framebuffer object
+
+    //if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    //    std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 
     //glGenTextures(1, &waterHeightTexture);
     ////glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 256, 0, GL_RGB, GL_FLOAT, NULL);
@@ -308,15 +340,12 @@ void ManualPBRRenderer::renderWater() {
     glBindTexture(GL_TEXTURE_2D, waterHeightTexture);
     normalShader->setFloat("delta", TEXELSIZE);
     defferedQuad->render();
-
-
-    waterMovement->use();
+    
+   /* waterMovement->use();
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, waterHeightTexture);
     waterMovement->setFloat("delta", TEXELSIZE);
-    defferedQuad->render();
-
-
+    defferedQuad->render();*/
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
@@ -333,9 +362,11 @@ void ManualPBRRenderer::renderWater() {
     waterShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(model))));
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, waterHeightTexture);
+    
     water->render();
 
-
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+   // glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     // DEBUG
     glViewport(0, 0, 256, 256);
     debugTextureShader->use();
@@ -386,7 +417,7 @@ void ManualPBRRenderer::displayUI()
 
 }
 
-void ManualPBRRenderer::handleEvents(GLFWwindow* window,float deltaTime)
+void ManualPBRRenderer::handleEvents(GLFWwindow* window, float deltaTime)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);

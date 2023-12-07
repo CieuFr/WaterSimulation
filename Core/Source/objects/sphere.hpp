@@ -9,9 +9,11 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+#include "base_object.hpp"
 
 
-class Sphere
+
+class Sphere : BaseObject
 {
 public:
     unsigned int sphereVAO = 0;

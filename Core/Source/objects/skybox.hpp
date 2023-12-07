@@ -11,10 +11,10 @@
 #include <iostream>
 #include <vector>
 #include <iostream>
-#include "victor_utils.hpp"
+#include "../utils/victor_utils.hpp"
 
 
-class Skybox
+class Skybox 
 {
     unsigned int skyboxVAO, skyboxVBO;
 public:

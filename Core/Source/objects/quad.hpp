@@ -10,8 +10,10 @@
 #include <iostream>
 #include <vector>
 
+#include "base_object.hpp"
 
-class Quad
+
+class Quad : BaseObject
 {
 public:
 

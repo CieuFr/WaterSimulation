@@ -9,11 +9,11 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include "base_object.hpp"
 
 
 
-
-class Cube
+class Cube : BaseObject
 {
 public:
     unsigned int VBO, cubeVAO;
@@ -82,7 +82,7 @@ public:
 
     }
 
-    void render() {
+    void render() override {
         glBindVertexArray(cubeVAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
