@@ -1,5 +1,5 @@
-#ifndef WATER_SURFACE_H
-#define WATER_SURFACE_H
+#ifndef WATER_H
+#define WATER_H
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
@@ -12,7 +12,7 @@
 #include "base_object.hpp"
 
 
-class WaterSurface : BaseObject
+class Water : BaseObject
 {
 public:
 
@@ -134,19 +134,46 @@ public:
         glDeleteVertexArrays(1, &waterVAO);
         glDeleteBuffers(1, &waterVBO);
      }
-    
-    void render() {
-		glBindVertexArray(waterVAO);
-		glDrawArrays(GL_TRIANGLES, 0, detail * detail * 6);
-		glBindVertexArray(0);
-    }
 
-	void render2() {
-		glBindVertexArray(waterVAO);
-		glDrawArrays(GL_TRIANGLES, 0, numCells*3);
-		glBindVertexArray(0);
+
+	bool Water::setupVertices() {
+		glGenVertexArrays(1, &vertices_vao);
+		glBindVertexArray(vertices_vao);
+
+		glGenBuffers(1, &vertices_vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vertices_vbo);
+
+		std::vector<HeightFieldVertex> tmp(field_size * field_size, HeightFieldVertex());
+		for (int j = 0; j < field_size; ++j) {
+			for (int i = 0; i < field_size; ++i) {
+				int dx = j * field_size + i;
+				tmp[dx].tex.set(i, j);
+			}
+		}
+
+		for (int j = 0; j < field_size - 1; ++j) {
+			for (int i = 0; i < field_size - 1; ++i) {
+				int a = (j + 0) * field_size + (i + 0);
+				int b = (j + 0) * field_size + (i + 1);
+				int c = (j + 1) * field_size + (i + 1);
+				int d = (j + 1) * field_size + (i + 0);
+				vertices.push_back(tmp[a]);
+				vertices.push_back(tmp[b]);
+				vertices.push_back(tmp[c]);
+
+				vertices.push_back(tmp[a]);
+				vertices.push_back(tmp[c]);
+				vertices.push_back(tmp[d]);
+			}
+		}
+
+		glBufferData(GL_ARRAY_BUFFER, sizeof(HeightFieldVertex) * vertices.size(), &vertices[0].tex, GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0); // tex
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(HeightFieldVertex), (GLvoid*)0);
+		return true;
 	}
-
+  
 	void simulateCoupling() {
 
 		cx = glm::floor(numX / 2.0f);
@@ -244,6 +271,5 @@ private:
 
    
 };
-
 #endif
 

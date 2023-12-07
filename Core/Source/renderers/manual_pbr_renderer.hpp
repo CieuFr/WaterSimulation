@@ -12,7 +12,7 @@
 
 #include <glm/gtx/intersect.hpp>
 
-#include"../utils/fbo.h"
+#include"../utils/Framebuffer.h"
 
 #include "../objects/heightfield.hpp"
 
@@ -80,7 +80,7 @@ public:
     Shader* wallShader = NULL;
     Shader* normalShader = NULL;
 
-    Framebuffer* framebo;
+    FrameBuffer* fboClass;
 
     HeightField* heightfield = NULL;
 
@@ -104,8 +104,8 @@ public:
     Mat4f modelBot = MAT4F_ID;
 
     Mat4f modelWater = MAT4F_ID;
-    GLuint waterHeightFBO;
-    GLuint waterHeightTexture;
+    GLuint waterHeightFBO[2];
+    GLuint waterHeightTexture[2];
 
 
     Vec3f colorBack = Vec3f(1.f, 1.0f, 1.0f);
@@ -115,6 +115,7 @@ public:
     Vec3f colorBot = Vec3f(1.f, 1.0f, 1.0f);
 
 
+    short toggle = 0;
 
     //IMGUI VARIABLES
     bool drawTriangle = true;
