@@ -19,16 +19,16 @@ public:
     unsigned int sphereVAO = 0;
     unsigned int indexCount;
     unsigned int vbo, ebo;
+
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec2> uv;
+    std::vector<glm::vec3> normals;
+    std::vector<unsigned int> indices;
     
     Sphere() {
         glGenVertexArrays(1, &sphereVAO);
         glGenBuffers(1, &vbo);
         glGenBuffers(1, &ebo);
-
-        std::vector<glm::vec3> positions;
-        std::vector<glm::vec2> uv;
-        std::vector<glm::vec3> normals;
-        std::vector<unsigned int> indices;
 
         const unsigned int X_SEGMENTS = 64;
         const unsigned int Y_SEGMENTS = 64;

@@ -1,6 +1,21 @@
 #ifndef __VICTOR__UTILS__
 #define __VICTOR__UTILS__
 
+
+class Debug {
+public:
+    static void log(const std::string& message) {
+        std::cout << "Log: " << message << std::endl;
+    }
+
+    template <typename T>
+    static void log(const T& value) {
+        std::ostringstream oss;
+        oss << "Log: " << value;
+        std::cout << oss.str() << std::endl;
+    }
+};
+
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -107,3 +122,5 @@ inline unsigned int loadCubemap(std::vector<std::string> faces)
 
 
 #endif
+
+

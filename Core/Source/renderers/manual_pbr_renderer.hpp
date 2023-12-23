@@ -8,7 +8,6 @@
 #include "../objects/sphere.hpp"
 #include "../objects/cube.hpp"
 #include "../objects/quad.hpp"
-#include "../objects/water_surface.hpp"
 
 #include <glm/gtx/intersect.hpp>
 
@@ -16,7 +15,23 @@
 
 #include "../objects/heightfield.hpp"
 
+#include "../objects/water.hpp"
+#include "../objects/physics_scene.hpp"
 
+
+
+struct MeshGPUQuad {
+    glm::vec3 albedo;
+    float metallic;
+    float roughness;
+    glm::vec3 vertices[4];
+    glm::vec3 normals[4];
+    glm::vec2 uvs[4];
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 projection;
+    int nb_vertices;
+};
 
 class ManualPBRRenderer : public BaseRenderer
 {
@@ -35,8 +50,14 @@ public:
     const GLint sizeOfWater = 256;
     const GLfloat TEXELSIZE = 1.0 / sizeOfWater;
     bool userHasClicked = false;
+    bool clickEnded = false;
+    bool rightClickPressed = false;
     float dropX;
     float dropY;
+    bool objectSelected = false;
+    bool selectionRayLaunched = false;
+
+    int nbClick = 0;
 
     GLuint inVAO, inVBO;
    
@@ -74,8 +95,7 @@ public:
     Shader* lightCubeShader = NULL;
     Shader* skyboxShader = NULL;
     Shader* waterShader = NULL;
-    Shader* waterMovement = NULL;
-    Shader* dropOnWater = NULL;
+  
     Shader* debugTextureShader = NULL;
     Shader* wallShader = NULL;
     Shader* normalShader = NULL;
@@ -87,7 +107,9 @@ public:
     Cube* cube = NULL;
     Skybox* skybox = NULL;
     Sphere* sphere  = NULL;
-    WaterSurface* water = NULL;
+    PhysicsScene* physicScene = NULL;
+    Water* waterwater = NULL;
+
     
     Quad* defferedQuad = NULL;
 
@@ -115,7 +137,12 @@ public:
     Vec3f colorBot = Vec3f(1.f, 1.0f, 1.0f);
 
 
-    short toggle = 0;
+    // RAYTRACED 
+    std::vector<MeshGPUQuad> rayTracedMeshes;
+    float nb_meshes_gpu;
+
+
+    short toggle = 1;
 
     //IMGUI VARIABLES
     bool drawTriangle = true;
@@ -130,7 +157,6 @@ public:
     void handleMouseMoveEvents(GLFWwindow* window, double xposIn, double yposIn) override;
     void handleMouseClickEvents(GLFWwindow* window, int button, int action, int mods) override;
     void handleWindowResize(GLFWwindow* window, int width, int height) override;
-
   
     void renderCornellBox();
     void initCornellBox();
@@ -138,8 +164,12 @@ public:
     void initWater();
     void renderWater();
 
+    void initRayTracedObjects();
+
     bool isClickOnWater();
 
+    void dragObject();
+    Vec3f getRayFromClick(float x, float y);
 
     struct QuadData {
         Mat4f model;

@@ -13,13 +13,12 @@ uniform mat4 model;
 uniform mat3 normalMatrix;
 uniform sampler2D water;
 
-
 void main()
 {
     vec4 waterMeshInfo = texture2D(water, aTexCoords);
     TexCoords = aTexCoords;
     vec3 newPos = aPos;
-    newPos.z += waterMeshInfo.r*2;
+    newPos.y = waterMeshInfo.r*2;
     WorldPos = vec3(model * vec4(newPos, 1.0));
     Normal = normalMatrix * aNormal;   
 

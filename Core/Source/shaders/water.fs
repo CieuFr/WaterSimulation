@@ -4,6 +4,27 @@ in vec2 TexCoords;
 in vec3 WorldPos;
 in vec3 Normal;
 
+struct MeshGPUQuad {
+   vec3 albedo;
+   float metallic;
+   float roughness;
+   vec3 vertices[4];
+   vec3 normals[4];
+   vec2 uvs[4];
+   mat4 model;
+};
+
+// TODO MODIFIER LE NOMBRE DE MESH
+const int n_meshes = 5;
+uniform MeshGPUQuad meshQuads[n_meshes];
+//uniform mat4 modelSphere;
+//4225
+// uniform sampler2D position_sphere;
+// uniform sampler2D normals_sphere;
+// uniform sampler2D uvs_sphere;
+// uniform sampler2D indices_sphere;
+
+bool debug = false;
 
 struct Ray
 {
@@ -23,135 +44,157 @@ struct IntersectInfo
     vec3  albedo;
     float fuzz;
     float refractionIndex;
+
+
 };
 
-bool refractVec(vec3 v, vec3 n, float ni_over_nt, out vec3 refracted)
-{
-    vec3 uv = normalize(v);
 
-    float dt = dot(uv, n);
 
-    float discriminant = 1.0 - ni_over_nt * ni_over_nt * (1.0f - dt * dt);
-
-    if (discriminant > 0.0f)
-    {
-        refracted = ni_over_nt*(uv - n * dt) - n * sqrt(discriminant);
-
-        return true;
-    }
-    else
-        return false;
-}
-
-vec3 reflectVec(vec3 v, vec3 n)
-{
-     return v - 2.0f * dot(v, n) * n;
-}
-
-/*bool intersectScene(Ray ray, float t_min, float t_max, out IntersectInfo rec)
-{
-        IntersectInfo temp_rec;
-
-        bool hit_anything = false;
-        float closest_so_far = t_max;
-
-        for (int i = 0; i < sceneList.length(); i++)
-        {
-            Sphere sphere = sceneList[i];
-
-            if (Sphere_hit(sphere, ray, t_min, closest_so_far, temp_rec))
-            {
-                hit_anything   = true;
-                closest_so_far = temp_rec.t;
-                rec            = temp_rec;
+ float raySphereIntersection(vec3 rayOrigin, vec3 rayDirection,
+            vec3 sphereCenter, float sphereRadius) {
+            vec3 oc = rayOrigin - sphereCenter;
+            float a = dot(rayDirection, rayDirection);
+            float b = 2.0f * dot(oc, rayDirection);
+            float c = dot(oc, oc) - sphereRadius * sphereRadius;
+            float discriminant = b * b - 4 * a * c;
+            if (discriminant < 0) {
+                return -1;
+            }
+            else {    
+                float t1 = (-b - sqrt(discriminant)) / (2.0 * a);
+                float t2 = (-b + sqrt(discriminant)) / (2.0 * a);
+                
+                float t = min(t1, t2);
+                
+                return t;  
             }
         }
 
-        return hit_anything;
-}*/
-/*
-bool intersectTriangle( const Ray & p_ray, float & p_t, Vec3f & p_n, float & p_u, float & p_v ) const
-	{
-		const Vec3f & o	 = p_ray.getOrigin();
-		const Vec3f & d	 = p_ray.getDirection();
-		const Vec3f & v0 = _refMesh->_vertices[ _v0 ];
-		const Vec3f & v1 = _refMesh->_vertices[ _v1 ];
-		const Vec3f & v2 = _refMesh->_vertices[ _v2 ];
 
-		Vec3f edge1, edge2, tvec, pvec, qvec;
+bool intersectTriangle(Ray p_ray, vec3 v0, vec3 v1, vec3 v2, vec3 n0, vec3 n1, vec3 n2 , out float p_t, out vec3 p_n, out float p_u, out float p_v )
+	{
+       
+        float _epsilon = 0.001;
+		vec3 o	 = p_ray.origin;
+		vec3 d	 = p_ray.direction;
+
+		vec3 edge1, edge2, tvec, pvec, qvec;
 		float det, inv_det, t, u, v;
 		edge1 = v1 - v0;
 		edge2 = v2 - v0;
-		pvec  = glm::cross( d, edge2 );
-		det	  = glm::dot( edge1, pvec );
+		pvec  = cross( d, edge2 ); 
+		det	  = dot( edge1, pvec );
 
-		
-		if ( det > -_epsilon && det < _epsilon ) return 0;
+		if ( det > -_epsilon && det < _epsilon ) return false;
 		inv_det = 1.f / det;
 		tvec	= o - v0;
-		u		= glm::dot( tvec, pvec ) * inv_det;
+		u		= dot( tvec, pvec ) * inv_det;
 		if ( u < 0 || u > 1 ) return false;
-		qvec = glm::cross( tvec, edge1 );
-		v	 = glm::dot( d, qvec ) * inv_det;
+		qvec = cross( tvec, edge1 );
+		v	 = dot( d, qvec ) * inv_det;
 		if ( v < 0 || u + v > 1 ) return false;
-		t = glm::dot( edge2, qvec ) * inv_det;
+		t = dot( edge2, qvec ) * inv_det;
 		
 		p_t		 = t;
 		p_u		 = u;
 		p_v		 = v;
-		Vec3f n0 = _refMesh->_normals[ _v0 ];
-		Vec3f n1 = _refMesh->_normals[ _v1 ];
-		Vec3f n2 = _refMesh->_normals[ _v2 ];
-		Vec3f n	 = ( 1 - u - v ) * n0 + u * n1 + v * n2;
+		
+		vec3 n	 = ( 1 - u - v ) * n0 + u * n1 + v * n2;
 		p_n		 = n;
-
 		return true;
-	}
-    */
-vec3 radiance(Ray ray)
-{
-    IntersectInfo rec;
-
-    vec3 col = vec3(1.0, 1.0, 1.0);
-    int MAXDEPTH = 3;
-    for(int i = 0; i < MAXDEPTH; i++)
-    {
-        // if (true)//intersectScene(ray, 0.001, MAXFLOAT, rec))
-        // {
-        //     Ray wi;
-        //     vec3 attenuation;
-
-        //     //bool wasScattered = Material_bsdf(rec, ray, wi, attenuation);
-
-        //     ray.origin = wi.origin;
-        //     ray.direction = wi.direction;
-
-        //     if (wasScattered)
-        //        col *= attenuation;
-        //    else
-        //     {
-        //        col *= vec3(0.0f, 0.0f, 0.0f);
-        //        break;
-        //    }
-        // }
-        // else
-        // {
-        //     col *= skyColor(ray);
-        //     break;
-        // }
-    }
-
-    return col;
 }
 
-layout (binding = 0) uniform samplerBuffer triangleData;
-layout (binding = 1) uniform samplerBuffer modelLocsData;
-layout (binding = 2) uniform samplerBuffer modelScalesData;
-layout (binding = 3) uniform samplerBuffer modelColorsData;
-layout (binding = 4) uniform samplerBuffer modelRotationsData;
-layout (binding = 5) uniform isamplerBuffer modelNumTrianglesData;
-layout (binding = 7) uniform samplerBuffer modelInverseRotationsData;
-layout (binding = 6) uniform samplerBuffer randNums;
+    
+
+
+
+bool intersectScene(Ray ray, float t_min, float t_max, MeshGPUQuad meshes[n_meshes], out IntersectInfo rec)
+{
+        bool hit_anything = false;
+        float closest_so_far = t_max;
+
+        // INTERSECT QUADS ONLY
+        for(int i = 0; i < n_meshes;i++){
+            MeshGPUQuad mesh = meshes[i];
+            vec4 world_p0 = mesh.model * vec4(mesh.vertices[0],1.0);
+            vec4 world_p1 = mesh.model * vec4(mesh.vertices[1],1.0);
+            vec4 world_p2 = mesh.model * vec4(mesh.vertices[2],1.0);
+            vec4 world_p3 = mesh.model * vec4(mesh.vertices[3],1.0);
+ 
+            vec3 po_p2 = world_p2.rgb-world_p0.rgb; 
+            vec3 po_p1 = world_p1.rgb-world_p0.rgb;
+            vec3 p1_p3 = world_p3.rgb-world_p1.rgb;
+            vec3 p3_p2 = world_p2.rgb-world_p3.rgb;
+
+            vec3 world_n0 = cross(po_p1,po_p2);
+            vec3 world_n1 = cross(p1_p3,-po_p1);
+            vec3 world_n2 = cross(-po_p2,-p3_p2);
+            vec3 world_n3 = cross(p3_p2,-p1_p3);
+
+            float t,u,v;
+            vec3 n;
+
+            if(intersectTriangle(ray,world_p0.rgb,world_p1.rgb,world_p2.rgb,world_n0,world_n1,world_n2,t,n,u,v)){
+                if ( t >= t_min && t <= closest_so_far){
+
+                    hit_anything = true;
+                    rec.albedo = mesh.albedo;
+                    rec.point = ray.origin + ray.direction * t;
+                    closest_so_far = t;
+                    rec.distance = t;
+                    rec.normal = n;
+                }
+                // TODO
+            }
+
+            if(intersectTriangle(ray,world_p3.rgb,world_p1.rgb,world_p2.rgb,world_n3,world_n1,world_n2,t,n,u,v)){
+                if ( t >= t_min && t <= closest_so_far){
+                    hit_anything = true;
+                    rec.albedo = mesh.albedo;
+                    rec.point = ray.origin + ray.direction *t;
+                    closest_so_far = t;
+                    rec.distance = t;
+                    rec.normal = n;
+                }
+            }
+
+        }
+
+        // SPHERE 8320
+        // for(int i = 0; i < 8320; i = i+3){
+
+        //     int index1 = int(texture2D(indices_sphere, getUVFromIndex(i)).r);
+        //     int index2 = int(texture2D(indices_sphere, getUVFromIndex(i+1)).r);
+        //     int index3 = int(texture2D(indices_sphere, getUVFromIndex(i+2)).r);
+            
+        //     vec3 v1 = vec4(modelSphere * vec4( texture2D(position_sphere, getUVFromIndex(index1)).xyz,1)).rgb;
+        //     vec3 v2 = vec4(modelSphere * vec4( texture2D(position_sphere, getUVFromIndex(index2)).xyz,1)).rgb;
+        //     vec3 v3 = vec4(modelSphere * vec4( texture2D(position_sphere, getUVFromIndex(index3)).xyz,1)).rgb;
+
+        //     vec3 n1 = vec4(modelSphere * vec4( texture2D(normals_sphere, getUVFromIndex(index1)).xyz,1)).rgb;
+        //     vec3 n2 = vec4(modelSphere * vec4( texture2D(normals_sphere, getUVFromIndex(index2)).xyz,1)).rgb;
+        //     vec3 n3 = vec4(modelSphere * vec4( texture2D(normals_sphere, getUVFromIndex(index3)).xyz,1)).rgb;
+        //     float t,u,v;
+        //     vec3 n;
+        //     if(intersectTriangle(ray,v1,v2,v3,n1,n2,n3,t,n,u,v))
+        //     {
+        //         if ( t >= t_min && t <= closest_so_far){
+        //             hit_anything = true;
+        //             rec.albedo = vec3(1,0,0);
+        //             rec.point = ray.origin + ray.direction *t;
+        //             closest_so_far = t;
+        //             rec.distance = t;
+        //             rec.normal = n;
+        //         }
+        //     }
+        // }
+
+      
+
+
+        return hit_anything;
+}
+
 
 // material parameters
 uniform vec3 albedo;
@@ -162,6 +205,11 @@ uniform mat4 projection;
 uniform mat4 view;
 uniform vec2 resolution;
 uniform int samples;
+
+
+
+
+uniform sampler2D water;
 
 
 // lights
@@ -212,15 +260,6 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-float schlick(float cos_theta, float n2)
-{
-    const float n1 = 1.0f;  // indice de refraction de l'air
-
-    float r0s = (n1 - n2) / (n1 + n2);
-    float r0 = r0s * r0s;
-
-    return r0 + (1.0f - r0) * pow((1.0f - cos_theta), 5.0f);
-}
 
 highp float rand(vec2 co)
 {
@@ -230,6 +269,14 @@ highp float rand(vec2 co)
     highp float dt= dot(co.xy ,vec2(a,b));
     highp float sn= mod(dt,3.14);
     return fract(sin(sn) * c);
+}
+
+vec3 skyColor(Ray ray)
+{
+    vec3 unit_direction = normalize(ray.direction);
+    float t = 0.5 * (unit_direction.y + 1.0);
+
+    return (1.0 - t) * vec3(1.0, 1.0, 1.0) + t * vec3(0.5, 0.7, 1.0);
 }
  
 vec3 shade(vec3 point, vec3 normal, vec3 camPos, vec3 albedo, float metallic, float roughness,vec3 lightPositions[4], vec3 lightColors[4]){
@@ -286,48 +333,68 @@ vec3 shade(vec3 point, vec3 normal, vec3 camPos, vec3 albedo, float metallic, fl
 // ----------------------------------------------------------------------------
 void main()
 {  
+
+    vec3 dX     = dFdx(WorldPos);
+    vec3 dY     = dFdy(WorldPos);
+    vec3 normalF = normalize(cross(dX, dY));
+
+    vec3 reflectedColor = vec3(0,0,0);
+    vec3 refractedColor = vec3(0,0,0);
     vec2 uv = gl_FragCoord.xy / resolution.xy;
-    vec3 wo = (camPos - WorldPos);
-    vec3 vecteurIncident = (WorldPos - camPos);
+    vec3 vecteurIncident = normalize(WorldPos - camPos);
     Ray rayonIncident = Ray(WorldPos, vecteurIncident);
-    vec3 vecteurReflechi = reflectVec(vecteurIncident,Normal);
+    vec3 vecteurReflechi = reflect(vecteurIncident,normalF);
     Ray rayonReflechi = Ray(WorldPos,vecteurReflechi);
+    IntersectInfo rec;
+
+    if(intersectScene(rayonReflechi, 0.001, 100000, meshQuads, rec)){
+        reflectedColor = shade(rec.point, rec.normal, camPos, rec.albedo, metallic, roughness, lightPositions, lightColors);    
+    } else {
+        reflectedColor = skyColor(rayonReflechi);
+    }
 
     vec3 vecteurRefracte;
-    float refractionIndex = 1.33f; // indice de refraction de l eau 
-    float ni_over_nt;
-    float reflect_prob = 1.0f;
-    vec3 outward_normal;
-    float cosine;
 
-    if (dot(wo, Normal) > 0.0f)
-    {
-        outward_normal = -Normal;
-        ni_over_nt = refractionIndex;
-    
-        cosine = dot(wo,Normal) / length(wo);
-        cosine = sqrt(1.0f - refractionIndex * refractionIndex * (1.0f - cosine * cosine));
-    }
-    else
-    {
-        outward_normal = Normal;
-        ni_over_nt = 1.0f / refractionIndex;
-        cosine = -dot(wo,Normal) / length(wo);
-    }
-    
-    if(refractVec(vecteurIncident,outward_normal,ni_over_nt,vecteurRefracte)){
-        reflect_prob = schlick(cosine, refractionIndex);
-    }
-    if (rand(uv) < reflect_prob)
-    {
-        // reflechi
-    }
-    else
-    {
-        // refracte
+    vec3 Lo;
+    float n1 = 1.f;
+    float n2 = 1.33f;
+    float eta = n1/n2;
+    float cosI = dot(-vecteurIncident,normalF);
+    float sinI = sqrt(1.0 - cosI*cosI);
+    float sinT = (eta * sinI);
+    float cosT = sqrt(1.0 - sinT * sinT);
+
+    cosI = max(cosI,0.f);
+    cosT = max(cosT,0.f);
+
+    float reflectionCoefficientP = pow((n1 * cosI - n2 *cosT) / (n1 * cosI + n2 * cosT),2);
+    float reflectionCoefficientS = pow((n1 * cosT - n2 *cosI) / (n1 * cosT + n2 * cosI),2);
+
+    float reflectedProportion = 0.5 * ( reflectionCoefficientP + reflectionCoefficientS );
+
+    if ( reflectedProportion < 1 ){
+        vecteurRefracte = refract(vecteurIncident,normalF,eta);
+        Ray rayonRefracte = Ray(WorldPos,vecteurRefracte);
+        
+        if(intersectScene(rayonRefracte, 0.001, 100000, meshQuads, rec)){
+            refractedColor = shade(rec.point, rec.normal, camPos, rec.albedo, metallic, roughness, lightPositions, lightColors);
+        } else {
+            refractedColor = skyColor(rayonRefracte);
+        }
     }
 
-    vec3 Lo = shade(WorldPos,Normal,camPos,albedo,metallic,roughness,lightPositions,lightColors);
+    float refractiveFactor = dot(-vecteurIncident, normalF);
+    refractiveFactor = pow(refractiveFactor,2);
+   // debug = true;
+
+     //FragColor = vec4(refractiveFactor,refractiveFactor,refractiveFactor,0);
+    // FragColor = vec4(reflectedColor,0);
+
+    Lo = mix(reflectedColor,refractedColor,refractiveFactor);
+    //Lo = reflectedProportion * reflectedColor + (1 - reflectedProportion) * refractedColor;
+
+
+    //Lo = shade(WorldPos,normalF,camPos,albedo,metallic,roughness,lightPositions,lightColors);
 
     // ambient lighting (note that the next IBL tutorial will replace 
     // this ambient lighting with environment lighting).
@@ -340,7 +407,17 @@ void main()
     // gamma correct
     color = pow(color, vec3(1.0/2.2)); 
 
+
+if(debug){
+    
+
+} else {
     FragColor = vec4(color, 1.0);
+    
+}
+    
+
+
    
 }
 

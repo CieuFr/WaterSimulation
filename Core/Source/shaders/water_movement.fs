@@ -1,10 +1,117 @@
+#version 450 core
+layout(location = 0) out float o_height;
+layout(location = 1) out float o_velocity;
+
+in vec2 TexCoords;
+
+uniform sampler2D u_height;
+uniform sampler2D u_velocity;
+uniform float u_waveSpeed;
+uniform float u_dt;
+uniform float u_c;
+uniform float u_pd;
+uniform float u_vd;
+uniform float u_dx;
+uniform float u_dz;
+
+void main()
+{
+   float h = texture(u_height,TexCoords).x;
+   float vel = texture(u_velocity,TexCoords).x;
+
+   float sumH = 0.0;
+   vec2 dx = vec2(u_dx, 0.0);
+   vec2 dy = vec2(0.0, u_dz);
+
+   if((TexCoords.x - u_dx) > 0){
+		sumH +=  texture(u_height, TexCoords - dx).r;
+	} else {
+		sumH += h;
+	}
+
+	if((TexCoords.y - u_dz) > 0){
+		
+		sumH +=  texture(u_height, TexCoords - dy).r;
+	} else {
+		sumH += h;
+	}
+
+	if( (TexCoords.y + u_dz) < 1) {
+		sumH +=  texture(u_height, TexCoords + dy).r;
+	} else {
+		
+		sumH += h;
+	}
+
+	if((TexCoords.x + u_dx) < 1){
+		sumH +=  texture(u_height, TexCoords + dx).r;
+	} else {
+		sumH += h;
+	}
+
+	float newHeight = h + u_pd * (0.25 * sumH - h);
+	float newVelocity = (vel + u_dt * u_c * (sumH - 4.0 * h ))*u_vd;
+
+	newHeight = newHeight + newVelocity * u_dt;
+
+	o_height = newHeight;
+	o_velocity = newVelocity;
+
+}
+
+/*
+
+	    float dt = 1.0 / 30.0;
+		waveSpeed = glm::min(waveSpeed, 0.5f * spacing / dt);
+		float c = waveSpeed * waveSpeed / spacing / spacing;
+		float pd = glm::min(posDamping * dt, 1.0f);
+		float vd = glm::max(0.0f, 1.0f - velDamping * dt);
+		for (int i = 0; i < numX; i++) {
+			for (int j = 0; j < numZ; j++) {
+				int id = i * numZ * j;
+				float h = heights[id];
+				float sumH = 0.0f;
+				sumH += i > 0 ? heights[id - numZ] : h;
+				sumH += i < numX - 1 ? heights[id + numZ] : h;
+				sumH += j > 0 ? heights[id - 1] : h;
+				sumH += j < numZ - 1 ? heights[id + 1] : h;
+				velocities[id] += dt * c * (sumH - 4.0 * h);
+				heights[id] += (0.25 * sumH - h) * pd;
+			}
+		}
+
+		for (int i = 0; i < numCells; i++) {
+			velocities[i] *= vd;		// velocity damping
+			heights[i] += velocities[i] * dt;
+		}
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /*#version 450 core
 layout(location = 0) out vec3 FragColor;
 
 in vec2 TexCoords;
 
-uniform sampler2D water;
+uniform sampler2D height;
+uniform sampler2D velocity;
+
+
 uniform float delta;
+
 highp float rand(vec2 co)
 {
     highp float a = 12.9898;
@@ -45,7 +152,7 @@ void main()
 
 
 
-
+/*
 #version 450 core
 layout(location = 0) out vec3 FragColor;
 
@@ -115,3 +222,4 @@ void main()
 
 }
 
+*/

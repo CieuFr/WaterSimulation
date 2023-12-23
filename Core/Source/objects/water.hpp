@@ -16,87 +16,105 @@ class Water : BaseObject
 {
 public:
 
-    unsigned int waterVAO = 0;
-    unsigned int waterVBO;
-	unsigned int waterVBOPos;
-	unsigned int waterVBOUvs;
-
-	GLint detail = 256;
-	GLfloat* waterMesh = NULL;
 	// physics
 	float waveSpeed = 2.0f;
-	float posDamping = 1.0f;
+	float posDamping = 1.5f;
 	float velDamping = 0.3f;
 	float alpha = 0.5f;
-	float time = 1.0f;
+	float time = 0.0f;
 	int numX;
 	int numZ;
+	int sizea;
+	int sizeb;
+
 	float spacing;
 	int numCells;
-	float* heights;
-	float* bodyHeights;
-	float* prevHeights;
-	float* velocities;
+	std::vector<float> heights;
+	std::vector<float> bodyHeights;
+	std::vector<float> prevHeights;
+	std::vector<float> velocities;
+
+	/* used to process the height field and extract some usefull data */
+	GLuint process_fbo;         /* we use a separate FBO to perform the processing step so we have some space for extra attachments */
+	GLuint tex_out_norm;        /* the GL_RGB32F texture that will keep our calculated normals */
+	GLuint tex_out_pos;         /* the GL_RGB32F texture that will keep our positions */
+	GLuint tex_out_texcoord;    /* the GL_RG32F texture that will keep our texcoords */
+	Shader* waterMovement;       /* the program we use to calculate things like normals, etc.. */
+	Shader* normalShader;           /* the program we use to calculate the positions */
+
+	GLuint field_fbo[2];
+	GLuint tex_u0;              /* height value */
+	GLuint tex_u1;              /* height value */
+	GLuint tex_v0;              /* velocity at which u diffuses */
+	GLuint tex_v1;              /* velocity at which u diffuses */
+	short toggle = 1;
+
 	// mesh
-	float* positions;
-	float* uvs;
+	std::vector<glm::vec3> vertexPositions;
+	std::vector<glm::vec3> vertexNormals;
+	std::vector<glm::vec2> vertexTexCoords;
+	std::vector<glm::uvec3> vertexIndices;
+	GLuint waterVAO = 0;
+	GLuint waterVBO_pos = 0;
+	GLuint waterVBO_normal = 0;
+	GLuint waterVBO_tex = 0;
+	GLuint water_ibo = 0;
+
+	Quad* defferedQuad = NULL;
+	Shader* dropOnWater = NULL;
+	GLuint waterHeightFBO[2];
+	GLuint waterHeightTexture[2];
+	GLuint waterVelocityTexture[2];
+
+	GLenum _drawBuffers[2] = { GL_COLOR_ATTACHMENT0,GL_COLOR_ATTACHMENT1};
+
 	float cx;
 	float cz;
-	float* index;
 
+	Water() {
+	}
 
-
-    WaterSurface() {
-		createWaterMesh(waterMesh, detail);
-		glGenVertexArrays(1, &waterVAO);
-		glGenBuffers(1, &waterVBO);
-		glBindVertexArray(waterVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, waterVBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * detail * detail * 30, waterMesh, GL_DYNAMIC_DRAW);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
-		glBindVertexArray(0); 
-
-    }
-
-	WaterSurface(int sizeX, int sizeZ,int  depth, float p_spacing) {
-		std::cout << "sizeY : " << sizeZ << std::endl;
+	Water(float sizeX, float sizeZ, float  depth, float p_spacing) {
+		defferedQuad = new Quad();
+		sizea = sizeX;
+		sizeb = sizeZ;
 
 		spacing = p_spacing;
+		numX = glm::floor(sizeX / spacing) + 1;
+		numZ = glm::floor(sizeZ / spacing) + 1;
 
-		numX = (int)glm::floor(static_cast<float>(sizeX) / spacing) + 1;
-		std::cout << "numX : " << numX << std::endl;
-
-		numZ = (int)glm::floor(static_cast<float>(sizeZ) / spacing) + 1;
-		
 		numCells = numX * numZ;
-		heights = new float[numCells];
-		bodyHeights = new float[numCells];
-		prevHeights = new float[numCells];
-		velocities = new float[numCells];
+
+		heights.reserve(numCells);
+		bodyHeights.reserve(numCells);
+		prevHeights.reserve(numCells);
+		velocities.reserve(numCells);
+
 		for (int i = 0; i < numCells; i++) {
 			heights[i] = depth;
 			velocities[i] = 0;
-		}	
-		positions = new float[numCells * 3];
-		uvs = new float[numCells * 2];
+		}
+
+		for (int i = 0; i < numCells; i++) vertexPositions.push_back(glm::vec3(0.0f, 0.0f, 0.0f));
+		for (int i = 0; i < numCells; i++) vertexNormals.push_back(glm::vec3(0.0f, 0.0f, 0.0f));
+		for (int i = 0; i < numCells; i++) vertexTexCoords.push_back(glm::vec2(0.0f, 0.0f));
+
 		cx = glm::floor(numX / 2.0f);
 		cz = glm::floor(numZ / 2.0f);
 
 		for (float i = 0; i < numX; i++) {
 			for (float j = 0; j < numZ; j++) {
-				positions[3 * (int)(i * numZ + j)] = (i - cx) * spacing;
-				positions[3 * (int)(i * numZ + j) + 2] = (j - cz) * spacing;
+				int id = i * numZ + j;
+				vertexPositions[id].x = (i - cx) * spacing;
+				vertexPositions[id].z = (j - cz) * spacing;
+				vertexTexCoords[id].x =  (i / numX);
+				vertexTexCoords[id].y = 1 - (j / numZ);
+				/*std::cout <<"id : " << id << std::endl;
+				std::cout << "x : " << vertexTexCoords[id].x << std::endl;
+				std::cout << "y : " << vertexTexCoords[id].y << std::endl;*/
 
-				uvs[2 * (int)(i * numZ + j)] = i / numX;
-				uvs[2 * (int)(i * numZ + j) + 1] = j / numZ;
 			}
 		}
-
-		index = new float[(numX - 1) * (numZ - 1) * 2 * 3];
-		int pos = 0;
 
 		for (int i = 0; i < numX - 1; i++) {
 			for (int j = 0; j < numZ - 1; j++) {
@@ -105,171 +123,251 @@ public:
 				int id2 = (i + 1) * numZ + j + 1;
 				int id3 = (i + 1) * numZ + j;
 
-				index[pos++] = id0;
-				index[pos++] = id1;
-				index[pos++] = id2;
-
-				index[pos++] = id0;
-				index[pos++] = id2;
-				index[pos++] = id3;
+				vertexIndices.push_back(glm::uvec3(id0, id1, id2));
+				vertexIndices.push_back(glm::uvec3(id0, id2, id3));
 			}
 		}
 
-		glGenVertexArrays(1, &waterVAO);
-		glGenBuffers(1, &waterVBOPos);
-		glGenBuffers(1, &waterVBOUvs);
+		int vertexBufferSize = sizeof(glm::vec3) * vertexPositions.size(); // Gather the size of the buffer from the CPU-side vector
+
+		glCreateBuffers(1, &waterVBO_pos); // Generate a GPU buffer to store the positions of the vertices
+
+		glNamedBufferStorage(waterVBO_pos, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); // Create a data store on the GPU
+		glNamedBufferSubData(waterVBO_pos, 0, vertexBufferSize, vertexPositions.data()); // Fill the data store from a CPU array
+
+		glCreateBuffers(1, &waterVBO_normal); // Same for normal
+		glNamedBufferStorage(waterVBO_normal, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT);
+		glNamedBufferSubData(waterVBO_normal, 0, vertexBufferSize, vertexNormals.data());
+
+		glCreateBuffers(1, &waterVBO_tex); // Same for texture coordinates
+		int texCoordBufferSize = sizeof(glm::vec2) * vertexTexCoords.size();
+		glNamedBufferStorage(waterVBO_tex, texCoordBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT);
+		glNamedBufferSubData(waterVBO_tex, 0, texCoordBufferSize, vertexTexCoords.data());
+
+		glCreateBuffers(1, &water_ibo); // Same for the index buffer, that stores the list of indices of the triangles forming the mesh
+		int indexBufferSize = sizeof(glm::uvec3) * vertexIndices.size();
+		glNamedBufferStorage(water_ibo, indexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT);
+		glNamedBufferSubData(water_ibo, 0, indexBufferSize, vertexIndices.data());
+
+		glCreateVertexArrays(1, &waterVAO); // Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
 		glBindVertexArray(waterVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, waterVBOPos);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * numCells * 3, positions, GL_DYNAMIC_DRAW);
+
 		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-		glBindBuffer(GL_ARRAY_BUFFER, waterVBOUvs);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * numCells * 2 , uvs, GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_ARRAY_BUFFER, waterVBO_pos);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
+
 		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (GLvoid*)0);
-		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, waterVBO_tex);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), 0);
+
+		glEnableVertexAttribArray(2);
+		glBindBuffer(GL_ARRAY_BUFFER, waterVBO_normal);
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, water_ibo);
+		glBindVertexArray(0); // Desactive the VAO just created. Will be activated at rendering time. 
+
+		setUpTextures();
 	}
 
-    ~WaterSurface() {
-        glDeleteVertexArrays(1, &waterVAO);
-        glDeleteBuffers(1, &waterVBO);
-     }
+	~Water() {
+		vertexPositions.clear();
+		vertexNormals.clear();
+		vertexTexCoords.clear();
+		vertexIndices.clear();
+		if (waterVAO) {
+			glDeleteVertexArrays(1, &waterVAO);
+			waterVAO = 0;
+		}
+		if (waterVBO_pos) {
+			glDeleteBuffers(1, &waterVBO_pos);
+			waterVBO_pos = 0;
+		}
+		if (waterVBO_normal) {
+			glDeleteBuffers(1, &waterVBO_normal);
+			waterVBO_normal = 0;
+		}
+		if (waterVBO_tex) {
+			glDeleteBuffers(1, &waterVBO_tex);
+			waterVBO_tex = 0;
+		}
+		if (water_ibo) {
+			glDeleteBuffers(1, &water_ibo);
+			water_ibo = 0;
+		}
+	}
 
 
-	bool Water::setupVertices() {
-		glGenVertexArrays(1, &vertices_vao);
-		glBindVertexArray(vertices_vao);
+	void render() {
+		glBindVertexArray(waterVAO); // Activate the VAO storing geometry data
+		glDrawElements(GL_TRIANGLES, static_cast<GLsizei> (vertexIndices.size() * 3), GL_UNSIGNED_INT, 0);
+		// Call for rendering: stream the current GPU geometry through the current GPU program
+	}
 
-		glGenBuffers(1, &vertices_vbo);
-		glBindBuffer(GL_ARRAY_BUFFER, vertices_vbo);
 
-		std::vector<HeightFieldVertex> tmp(field_size * field_size, HeightFieldVertex());
-		for (int j = 0; j < field_size; ++j) {
-			for (int i = 0; i < field_size; ++i) {
-				int dx = j * field_size + i;
-				tmp[dx].tex.set(i, j);
-			}
+	bool setUpTextures() {
+
+		glGenTextures(1, &tex_out_norm);
+		glBindTexture(GL_TEXTURE_2D, tex_out_norm);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, numX, numZ, 0, GL_RGB, GL_FLOAT, 0);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		glGenTextures(1, &tex_out_pos);
+		glBindTexture(GL_TEXTURE_2D, tex_out_pos);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, numX, numZ, 0, GL_RGB, GL_FLOAT, 0);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		glGenTextures(1, &tex_out_texcoord);
+		glBindTexture(GL_TEXTURE_2D, tex_out_texcoord);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, numX, numZ, 0, GL_RG, GL_FLOAT, 0);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		glGenFramebuffers(1, &process_fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, process_fbo);
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_out_pos, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, tex_out_norm, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, tex_out_texcoord, 0);
+
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+			printf("Error: process framebuffer not complete.\n");
+			return false;
 		}
 
-		for (int j = 0; j < field_size - 1; ++j) {
-			for (int i = 0; i < field_size - 1; ++i) {
-				int a = (j + 0) * field_size + (i + 0);
-				int b = (j + 0) * field_size + (i + 1);
-				int c = (j + 1) * field_size + (i + 1);
-				int d = (j + 1) * field_size + (i + 0);
-				vertices.push_back(tmp[a]);
-				vertices.push_back(tmp[b]);
-				vertices.push_back(tmp[c]);
 
-				vertices.push_back(tmp[a]);
-				vertices.push_back(tmp[c]);
-				vertices.push_back(tmp[d]);
-			}
-		}
+		waterMovement = new Shader{ "Source/shaders/screen_space_quad.vs", "Source/shaders/water_movement.fs" };
+		dropOnWater = new Shader{ "Source/shaders/screen_space_quad.vs", "Source/shaders/drop_on_water.fs" };
+		normalShader = new Shader{ "Source/shaders/screen_space_quad.vs", "Source/shaders/normal_water.fs" };
 
-		glBufferData(GL_ARRAY_BUFFER, sizeof(HeightFieldVertex) * vertices.size(), &vertices[0].tex, GL_STATIC_DRAW);
+		dropOnWater->use();
+		dropOnWater->setInt("u_height", 0);
+		dropOnWater->setInt("u_velocity", 1);
 
-		glEnableVertexAttribArray(0); // tex
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(HeightFieldVertex), (GLvoid*)0);
-		return true;
-	}
-  
-	void simulateCoupling() {
+		waterMovement->use();
+		waterMovement->setInt("u_height", 0);
+		waterMovement->setInt("u_velocity", 1);
 
-		cx = glm::floor(numX / 2.0f);
-		cz = glm::floor(numZ / 2.0f);
-		float h1 = 1.0 / spacing;
-	}
+		
 
-	void simulateSurface() {
-		float dt = 1.0 / 30.0;
-		waveSpeed = glm::min(waveSpeed, 0.5f * spacing / dt);
+		waterMovement->setFloat("u_waveSpeed", waveSpeed);
+		waterMovement->setFloat("u_pd", posDamping);
+		waterMovement->setFloat("u_vd", velDamping);
 		float c = waveSpeed * waveSpeed / spacing / spacing;
-		float pd = glm::min(posDamping * dt, 1.0f);
-		float vd = glm::max(0.0f, 1.0f - velDamping * dt);
-		for (int i = 0; i < numX; i++) {
-			for (int j = 0; j < numZ; j++) {
-				int id = i * numZ * j;
-				float h = heights[id];
-				float sumH = 0.0f;
-				sumH += i > 0 ? heights[id - numZ] : h;
-				sumH += i < numX - 1 ? heights[id + numZ] : h;
-				sumH += j > 0 ? heights[id - 1] : h;
-				sumH += j < numZ - 1 ? heights[id + 1] : h;
-				velocities[id] += dt * c * (sumH - 4.0 * h);
-				heights[id] += (0.25 * sumH - h) * pd; 
+		waterMovement->setFloat("u_c", c);
+		
+
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		int upper = 50;
+		int lower = 30;
+		std::vector<float>					u;
+		std::vector<float>					v;
+
+		for (unsigned int i = 0; i < numX*numZ; i++)
+		{
+			for (int j = 0; j < numX; ++j) {
+				for (int i = 0; i < numZ; ++i) {
+					if (i > lower && i < upper && j > lower && j < upper) {
+						u.push_back(0.f);
+					}
+					else {
+						u.push_back(0.f);
+					}
+					v.push_back(0.f);
+					
+				}
 			}
+			
 		}
 
-		for (int i = 0; i < numCells; i++) {
-			velocities[i] *= vd;		// velocity damping
-			heights[i] += velocities[i] * dt;
+		glCreateFramebuffers(2, waterHeightFBO);
+
+		// The texture we're going to render to
+		glCreateTextures(GL_TEXTURE_2D, 2, waterHeightTexture);
+		glCreateTextures(GL_TEXTURE_2D, 2, waterVelocityTexture);
+
+		for (size_t i = 0; i < 2; i++)
+		{
+			glTextureStorage2D(waterHeightTexture[i], 1, GL_R32F, numX, numZ);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTextureSubImage2D(waterHeightTexture[i], 0, 0, 0, numX, numZ, GL_RED, GL_FLOAT, &u[0]);
+
+			glTextureStorage2D(waterVelocityTexture[i], 1, GL_R32F, numX, numZ);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTextureSubImage2D(waterVelocityTexture[i], 0, 0, 0, numX, numZ, GL_RED, GL_FLOAT, &v[0]);
+
+			glNamedFramebufferTexture(waterHeightFBO[i], _drawBuffers[0], waterHeightTexture[i], 0);
+			glNamedFramebufferTexture(waterHeightFBO[i], _drawBuffers[1], waterVelocityTexture[i], 0);
+
+			glNamedFramebufferDrawBuffers(waterHeightFBO[i], 2, _drawBuffers);
 		}
+
+	/*	float* data = new float[numX * numZ];
+		glGetTextureImage(waterHeightFBO[0], 0, GL_RED, GL_FLOAT, numX * numZ * sizeof(float), data);
+		for (int i = 0; i < numX * numZ; i++)
+		{
+			std::cout << " | " << data[i] << " | ";
+
+		}*/
 
 		
 	}
 
-	void dropOnWater(float x, float y) {
 
-		heights[25] = heights[25 * 25];
+	void update(float dt) {
+		waterMovement->use();
+	
+		glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
+		glBindTextureUnit(0, waterHeightTexture[1 - toggle]);
+		glBindTextureUnit(1, waterVelocityTexture[1 - toggle]);
+
+		waterMovement->setFloat("u_dx", spacing/ sizea);
+		waterMovement->setFloat("u_dz", spacing / sizeb);
+		waterMovement->setFloat("u_dt", dt);
+		waveSpeed = glm::min(waveSpeed, 0.5f * spacing / dt);
+		waterMovement->setFloat("u_waveSpeed", waveSpeed);
+		float l_pd = glm::min(posDamping * dt, 1.0f);
+		float l_vd = glm::max(0.0f, 1.0f - (velDamping * dt));
+
+		waterMovement->setFloat("u_pd", l_pd);
+		waterMovement->setFloat("u_vd", l_vd);
+		defferedQuad->render();
+		toggle = 1 - toggle;
+	}
+
+	void waterDrop(float dropX, float dropY ) {
+
+		dropOnWater->use();
+		glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, waterHeightTexture[1 - toggle]);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, waterVelocityTexture[1 - toggle]);
+		dropOnWater->setVec2("center", dropX, dropY);
+		defferedQuad->render();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		toggle = 1 - toggle;
 	}
 
 
-private:
+	
 
-	inline GLfloat denormalize(GLfloat var) {
-		return (var * 2.0 - 1.0);
-	}
-
-	inline void createWaterMesh(GLfloat*& mesh, GLint detail)
-	{
-		mesh = new GLfloat[30 * detail * detail];
-		GLfloat detailsize = 1.0 / (GLfloat)detail;
-		for (int y = 0; y < detail; y++) {
-			for (int x = 0; x < detail; x++) {
-				int index = (detail * y + x) * 30;
-				mesh[index] = denormalize(detailsize * (GLfloat)x);
-				mesh[index + 1] = denormalize(detailsize * (GLfloat)y);
-				mesh[index + 2] = 0.0;
-				mesh[index + 3] = detailsize * (GLfloat)x;
-				mesh[index + 4] = detailsize * (GLfloat)y;
-
-				mesh[index + 5] = denormalize(detailsize * (GLfloat)(x + 1));
-				mesh[index + 6] = denormalize(detailsize * (GLfloat)y);
-				mesh[index + 7] = 0.0;
-				mesh[index + 8] = detailsize * (GLfloat)(x + 1);
-				mesh[index + 9] = detailsize * (GLfloat)y;
-
-				mesh[index + 10] = denormalize(detailsize * (GLfloat)x);
-				mesh[index + 11] = denormalize(detailsize * (GLfloat)(y + 1));
-				mesh[index + 12] = 0.0;
-				mesh[index + 13] = detailsize * (GLfloat)x;
-				mesh[index + 14] = detailsize * (GLfloat)(y + 1);
-
-				mesh[index + 15] = denormalize(detailsize * (GLfloat)x);
-				mesh[index + 16] = denormalize(detailsize * (GLfloat)(y + 1));
-				mesh[index + 17] = 0.0;
-				mesh[index + 18] = detailsize * (GLfloat)x;
-				mesh[index + 19] = detailsize * (GLfloat)(y + 1);
-
-				mesh[index + 20] = denormalize(detailsize * (GLfloat)(x + 1));
-				mesh[index + 21] = denormalize(detailsize * (GLfloat)(y + 1));
-				mesh[index + 22] = 0.0;
-				mesh[index + 23] = detailsize * (GLfloat)(x + 1);
-				mesh[index + 24] = detailsize * (GLfloat)(y + 1);
-
-				mesh[index + 25] = denormalize(detailsize * (GLfloat)(x + 1));
-				mesh[index + 26] = denormalize(detailsize * (GLfloat)y);
-				mesh[index + 27] = 0.0;
-				mesh[index + 28] = detailsize * (GLfloat)(x + 1);
-				mesh[index + 29] = detailsize * (GLfloat)y;
-			}
-		}
-	}
-
-   
-
-   
 };
 #endif
 
