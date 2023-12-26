@@ -17,7 +17,7 @@ void main()
     vec3 info = texture(u_height, TexCoords).rgb;  
     float drop = max(0.0, 1.0 - length( center - TexCoords) / 0.06);
     drop = 0.5 - cos(drop*PI)*0.5;
-    info.r += drop*0.2;
+    info.r += drop*0.5;
     o_height = info.r;
     o_velocity = vel;
 }

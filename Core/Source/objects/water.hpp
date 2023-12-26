@@ -20,7 +20,7 @@ public:
 	float waveSpeed = 2.0f;
 	float posDamping = 1.5f;
 	float velDamping = 0.3f;
-	float alpha = 0.5f;
+	float alpha = 0.05f;
 	float time = 0.0f;
 	int numX;
 	int numZ;
@@ -33,6 +33,8 @@ public:
 	std::vector<float> bodyHeights;
 	std::vector<float> prevHeights;
 	std::vector<float> velocities;
+	std::vector<float> bodyChange;
+
 
 	/* used to process the height field and extract some usefull data */
 	GLuint process_fbo;         /* we use a separate FBO to perform the processing step so we have some space for extra attachments */
@@ -40,7 +42,7 @@ public:
 	GLuint tex_out_pos;         /* the GL_RGB32F texture that will keep our positions */
 	GLuint tex_out_texcoord;    /* the GL_RG32F texture that will keep our texcoords */
 	Shader* waterMovement;       /* the program we use to calculate things like normals, etc.. */
-	Shader* normalShader;           /* the program we use to calculate the positions */
+	Shader* objectWaterShader;           /* the program we use to calculate the positions */
 
 	GLuint field_fbo[2];
 	GLuint tex_u0;              /* height value */
@@ -65,6 +67,9 @@ public:
 	GLuint waterHeightFBO[2];
 	GLuint waterHeightTexture[2];
 	GLuint waterVelocityTexture[2];
+	GLuint bodyChanceTexture;
+
+	Mat4f modelWater = MAT4F_ID;
 
 	GLenum _drawBuffers[2] = { GL_COLOR_ATTACHMENT0,GL_COLOR_ATTACHMENT1};
 
@@ -87,8 +92,11 @@ public:
 
 		heights.reserve(numCells);
 		bodyHeights.reserve(numCells);
+		bodyChange.reserve(numCells);
 		prevHeights.reserve(numCells);
 		velocities.reserve(numCells);
+
+		modelWater = glm::translate(modelWater, Vec3f(0, depth, 0));
 
 		for (int i = 0; i < numCells; i++) {
 			heights[i] = depth;
@@ -109,10 +117,6 @@ public:
 				vertexPositions[id].z = (j - cz) * spacing;
 				vertexTexCoords[id].x =  (i / numX);
 				vertexTexCoords[id].y = 1 - (j / numZ);
-				/*std::cout <<"id : " << id << std::endl;
-				std::cout << "x : " << vertexTexCoords[id].x << std::endl;
-				std::cout << "y : " << vertexTexCoords[id].y << std::endl;*/
-
 			}
 		}
 
@@ -167,7 +171,9 @@ public:
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, water_ibo);
 		glBindVertexArray(0); // Desactive the VAO just created. Will be activated at rendering time. 
 
-		setUpTextures();
+		setUpTextures(depth);
+
+
 	}
 
 	~Water() {
@@ -204,49 +210,16 @@ public:
 		// Call for rendering: stream the current GPU geometry through the current GPU program
 	}
 
+	float getWaterHeight(int i) {
+		float* data = new float[numX * numZ];
+		glGetTextureImage(waterHeightFBO[1], 0, GL_RED, GL_FLOAT, numX * numZ * sizeof(float), data);
+		return data[i];	
+	}
 
-	bool setUpTextures() {
-
-		glGenTextures(1, &tex_out_norm);
-		glBindTexture(GL_TEXTURE_2D, tex_out_norm);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, numX, numZ, 0, GL_RGB, GL_FLOAT, 0);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-		glGenTextures(1, &tex_out_pos);
-		glBindTexture(GL_TEXTURE_2D, tex_out_pos);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, numX, numZ, 0, GL_RGB, GL_FLOAT, 0);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-		glGenTextures(1, &tex_out_texcoord);
-		glBindTexture(GL_TEXTURE_2D, tex_out_texcoord);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, numX, numZ, 0, GL_RG, GL_FLOAT, 0);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-		glGenFramebuffers(1, &process_fbo);
-		glBindFramebuffer(GL_FRAMEBUFFER, process_fbo);
-
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_out_pos, 0);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, tex_out_norm, 0);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, tex_out_texcoord, 0);
-
-		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-			printf("Error: process framebuffer not complete.\n");
-			return false;
-		}
-
-
+	bool setUpTextures(float depth) {
 		waterMovement = new Shader{ "Source/shaders/screen_space_quad.vs", "Source/shaders/water_movement.fs" };
 		dropOnWater = new Shader{ "Source/shaders/screen_space_quad.vs", "Source/shaders/drop_on_water.fs" };
-		normalShader = new Shader{ "Source/shaders/screen_space_quad.vs", "Source/shaders/normal_water.fs" };
+		objectWaterShader = new Shader{ "Source/shaders/screen_space_quad.vs", "Source/shaders/object_on_water.fs" };
 
 		dropOnWater->use();
 		dropOnWater->setInt("u_height", 0);
@@ -255,8 +228,6 @@ public:
 		waterMovement->use();
 		waterMovement->setInt("u_height", 0);
 		waterMovement->setInt("u_velocity", 1);
-
-		
 
 		waterMovement->setFloat("u_waveSpeed", waveSpeed);
 		waterMovement->setFloat("u_pd", posDamping);
@@ -284,7 +255,10 @@ public:
 						u.push_back(0.f);
 					}
 					v.push_back(0.f);
-					
+					bodyHeights.push_back(0.f);
+					prevHeights.push_back(0.f);
+					bodyChange.push_back(0.f);
+
 				}
 			}
 			
@@ -318,22 +292,21 @@ public:
 			glNamedFramebufferDrawBuffers(waterHeightFBO[i], 2, _drawBuffers);
 		}
 
-	/*	float* data = new float[numX * numZ];
-		glGetTextureImage(waterHeightFBO[0], 0, GL_RED, GL_FLOAT, numX * numZ * sizeof(float), data);
-		for (int i = 0; i < numX * numZ; i++)
-		{
-			std::cout << " | " << data[i] << " | ";
+		glTextureStorage2D(bodyChanceTexture, 1, GL_R32F, numX, numZ);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureSubImage2D(bodyChanceTexture, 0, 0, 0, numX, numZ, GL_RED, GL_FLOAT, &bodyChange[0]);
 
-		}*/
-
-		
 	}
 
 
 	void update(float dt) {
 		waterMovement->use();
-	
+		
 		glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glBindTextureUnit(0, waterHeightTexture[1 - toggle]);
 		glBindTextureUnit(1, waterVelocityTexture[1 - toggle]);
 
@@ -348,25 +321,45 @@ public:
 		waterMovement->setFloat("u_pd", l_pd);
 		waterMovement->setFloat("u_vd", l_vd);
 		defferedQuad->render();
+
+		
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		toggle = 1 - toggle;
+
 	}
 
 	void waterDrop(float dropX, float dropY ) {
 
 		dropOnWater->use();
 		glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, waterHeightTexture[1 - toggle]);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, waterVelocityTexture[1 - toggle]);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glBindTextureUnit(0, waterHeightTexture[1 - toggle]);
+		glBindTextureUnit(1, waterVelocityTexture[1 - toggle]);
 		dropOnWater->setVec2("center", dropX, dropY);
 		defferedQuad->render();
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		toggle = 1 - toggle;
 	}
 
+	void heightObjectUpdate() {
 
-	
+		objectWaterShader->use();
+
+		glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glBindTextureUnit(0, waterHeightTexture[1 - toggle]);
+		glBindTextureUnit(1, waterVelocityTexture[1 - toggle]);
+		glBindTextureUnit(2, bodyChanceTexture);
+		objectWaterShader->setFloat("alpha", alpha);
+		defferedQuad->render();
+
+		float* data = new float[numX * numZ];
+		glGetTextureImage(waterHeightTexture[1-toggle], 0, GL_RED, GL_FLOAT, numX * numZ * sizeof(float), data);
+		
+		std::cout << data[0] << std::endl;
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		toggle = 1 - toggle;
+	}
 
 };
 #endif

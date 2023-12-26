@@ -18,7 +18,7 @@ void ManualPBRRenderer::init()
      sphere = new Sphere();
      
      physicScene = new PhysicsScene();
-     physicScene->addSphere(1.0,1.0,Vec3f(0.0,0.0,2.0));
+     physicScene->addSphere(1.0,1.0,Vec3f(0.0,0.0,0.1));
    
      defferedQuad = new Quad();
 
@@ -26,13 +26,13 @@ void ManualPBRRenderer::init()
      right = new Quad();
      left = new Quad();
      top = new Quad();
-     bot = new Quad();
+     bot = new Quad(); 
 
      initCornellBox();
 
-     initWater();
-
      initRayTracedObjects();
+
+     initWater();
 
      // INIT STATIC UNIFORM PARAMETER 
      skyboxShader->use();
@@ -44,12 +44,17 @@ void ManualPBRRenderer::init()
      waterShader->setMat4("projection", projection);
      Vec2f resolution = Vec2f(SCR_WIDTH, SCR_HEIGHT);
      waterShader->setVec2("resolution", resolution);
+     waterShader->setInt("skybox", 0);
 
      wallShader->use();
      wallShader->setVec3("albedo", 0.5f, 0.0f, 0.0f);
      wallShader->setFloat("ao", 1.0f);
      wallShader->setMat4("projection", projection);
+     wallShader->setMat4("model", MAT4F_ID);
+
      wallShader->setVec2("resolution", resolution);
+     wallShader->setBool("isSphere", false);
+
 
 }
 
@@ -64,16 +69,12 @@ void ManualPBRRenderer::render()
  
     if (userHasClicked && !selectionRayLaunched) {
         Vec3f ray = getRayFromClick(lastX, lastY);
-        if (physicScene->selectObject(camera.Position, ray)) {
-            objectSelected = true;
-        }
+        physicScene->selectObject(camera.Position, ray);
         selectionRayLaunched = true;
     }
 
- 
-    renderWater();
-
-    renderCornellBox();
+    // apply physic to water
+     physicScene->simulate(deltaTime);
 
     // render light source (simply re-render sphere at light positions)
      // this looks a bit off as we use the same shader, but it'll make their positions obvious and 
@@ -97,6 +98,13 @@ void ManualPBRRenderer::render()
         waterShader->setVec3("lightColors[" + std::to_string(i) + "]", lightColors[i]);
     }
 
+
+    renderWater();
+
+    renderCornellBox();
+
+    renderSphere();
+
     // render skybox 
     skyboxShader->use();
     view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // remove translation from the view matrix
@@ -106,7 +114,7 @@ void ManualPBRRenderer::render()
 
 
     if (userHasClicked && !clickEnded ) {
-        if (objectSelected) {
+        if (physicScene->isObjectSelected) {
             dragObject();
         }
     }
@@ -116,9 +124,10 @@ void ManualPBRRenderer::render()
         userHasClicked = false;
         clickEnded = false;
         selectionRayLaunched = false;
-        objectSelected = false;
+        physicScene->unSelectObject();
     }
 
+    updateDeltaTime();
 }
 
 void ManualPBRRenderer::initRayTracedObjects() {
@@ -229,23 +238,33 @@ void ManualPBRRenderer::initRayTracedObjects() {
     rayTracedMeshes.push_back(right);
     rayTracedMeshes.push_back(left);
 
-   /* for (size_t i = 0; i < physicScene->physicalObjects.size(); i++)
+
+   for (size_t i = 0; i < physicScene->physicalObjects.size(); i++)
     {
-        MeshGPUQuad sphere;
+        MeshGPUSphere sphere;
         sphere.albedo = colorTop;
         sphere.metallic = 0.5f;
         sphere.roughness = 0.5f;
         sphere.model = physicScene->physicalObjects[i]->model;
-        sphere.nb_vertices = physicScene->physicalObjects[i]->indices.size();
+        sphere.nb_vertices = physicScene->physicalObjects[i]->positions.size();
+        sphere.nb_indices = physicScene->physicalObjects[i]->indices.size();
+        std::cout << "aie1  " << sphere.nb_indices << std::endl;
+        std::cout << "aie2  " << sphere.nb_vertices << std::endl;
+        
 
         for (size_t ii = 0; ii < physicScene->physicalObjects[i]->positions.size(); ii++) {
             sphere.vertices[ii] = physicScene->physicalObjects[i]->positions[ii];
             sphere.uvs[ii] = physicScene->physicalObjects[i]->uv[ii];
             sphere.normals[ii] = physicScene->physicalObjects[i]->normals[ii];
+            
         }
+        for (int ii = 0; ii < sphere.nb_indices; ii++) {
+            sphere.indices[ii] = physicScene->physicalObjects[i]->indices[ii];
+        }
+        rayTracedMeshesSphere.push_back(sphere);
     }
 
-    nb_meshes_gpu = 5 + physicScene->physicalObjects.size();*/
+    /*nb_meshes_gpu = 5 + physicScene->physicalObjects.size();*/
     
     std::cout << physicScene->physicalObjects[0]->indices.size() << std::endl;
 
@@ -287,6 +306,7 @@ void ManualPBRRenderer::renderCornellBox() {
     // on direct lighting.
     wallShader->setFloat("metallic", metallic);
     wallShader->setFloat("roughness", roughness);
+    wallShader->setBool("isSphere", false);
     model = glm::mat4(1.0f);
    
     // BACK
@@ -322,17 +342,24 @@ void ManualPBRRenderer::renderCornellBox() {
 
     left->render();
 
-
-    // RENDER SPHERE TODO MOVE 
-    wallShader->setVec3("albedo", colorLeft);
-
-    if (physicScene->physicalObjects.size() != 0) {
-        wallShader->setMat4("model", physicScene->getSelectedObjectModel());
-        wallShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(physicScene->getSelectedObjectModel()))));
-        physicScene->render();
-    }
 }
 
+
+void ManualPBRRenderer::renderSphere() {
+
+    wallShader->use();
+    // RENDER SPHERE TODO MOVE 
+    wallShader->setVec3("albedo", colorLeft);
+    wallShader->setBool("isSphere", true);
+
+    if (physicScene->physicalObjects.size() != 0) {
+        wallShader->setMat4("model", physicScene->physicalObjects[0]->model);
+        wallShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(physicScene->physicalObjects[0]->model))));
+        physicScene->render();
+    }
+
+
+}
 Vec3f ManualPBRRenderer::getRayFromClick(float x, float y) {
 
     float normalizedX = (2.0f * x) / SCR_WIDTH - 1.0f;
@@ -415,6 +442,57 @@ void ManualPBRRenderer::initWater() {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
+
+    waterShader->use();
+
+    // TODO MODIFY SHADER IF MODIFY HERE
+    for (int i = 0; i < 5; ++i)
+    {
+        using namespace std::literals;
+        std::string prefix = "meshQuads["s + std::to_string(i);
+        MeshGPUQuad& mesh = rayTracedMeshes[i];
+        waterShader->setFloat(std::string(prefix + "].roughness"s), mesh.roughness);
+        waterShader->setFloat(std::string(prefix + "].metallic"s), mesh.metallic);
+        waterShader->setVec3(std::string(prefix + "].albedo"s), mesh.albedo);
+        waterShader->setMat4(std::string(prefix + "].model"s), mesh.model);
+
+        const int nb_mesh = 4;
+        for (size_t j = 0; j < nb_mesh; j++)
+        {
+            waterShader->setVec3(std::string(prefix + "].vertices[" + std::to_string(j) + "]"s), mesh.vertices[j]);
+            waterShader->setVec3(std::string(prefix + "].normals[" + std::to_string(j) + "]"s), mesh.normals[j]);
+            waterShader->setVec2(std::string(prefix + "].uvs[" + std::to_string(j) + "]"s), mesh.uvs[j]);
+        }
+    }
+
+    for (int i = 0; i < 1; ++i)
+    {
+        using namespace std::literals;
+        std::string prefix = "meshSphere["s + std::to_string(i);
+        MeshGPUSphere& mesh = rayTracedMeshesSphere[i];
+        waterShader->setFloat(std::string(prefix + "].roughness"s), mesh.roughness);
+        waterShader->setFloat(std::string(prefix + "].metallic"s), mesh.metallic);
+        waterShader->setVec3(std::string(prefix + "].albedo"s), mesh.albedo);
+        waterShader->setMat4(std::string(prefix + "].model"s), mesh.model);
+        waterShader->setInt(std::string(prefix + "].nb_indices"s), mesh.nb_indices);
+        waterShader->setInt(std::string(prefix + "].nb_vertices"s), mesh.nb_vertices);
+
+        // TODO MODIFY SHADER IF MODIFY HERE
+        //HARCODED 8x8 SPHERE
+        for (size_t j = 0; j < mesh.nb_vertices; j++)
+        {
+            waterShader->setVec3(std::string(prefix + "].vertices[" + std::to_string(j) + "]"s), mesh.vertices[j]);
+            waterShader->setVec3(std::string(prefix + "].normals[" + std::to_string(j) + "]"s), mesh.normals[j]);
+            waterShader->setVec2(std::string(prefix + "].uvs[" + std::to_string(j) + "]"s), mesh.uvs[j]);
+            
+        }
+        for (size_t j = 0; j < mesh.nb_indices; j++)
+        {
+            waterShader->setInt(std::string(prefix + "].indices[" + std::to_string(j) + "]"s), mesh.indices[j]);
+        }
+    }
+
+
 }
 
 void ManualPBRRenderer::renderWater() {
@@ -431,8 +509,9 @@ void ManualPBRRenderer::renderWater() {
     }
 
     // WATER PROCESS
-    physicScene->water->update(1.f/300.f);
+    physicScene->water->update(deltaTime);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
     waterShader->use();
     waterShader->setMat4("view", view);
@@ -443,33 +522,24 @@ void ManualPBRRenderer::renderWater() {
     waterShader->setFloat("metallic", metallic);
     waterShader->setFloat("roughness", roughness);
     model = glm::mat4(1.0f);
-    waterShader->setMat4("model", modelWater);
-    waterShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(model))));
-
-    // TODO MODIFY SHADER IF MODIFY HERE
-    for (int i = 0; i <5 ; ++i)
+    waterShader->setMat4("model", physicScene->water->modelWater);
+    //waterShader->setMat4("modelSphere", physicScene->physicalObjects[0]->model);
+    // TODO sphere.model = physicScene->physicalObjects[i]->model;
+    for (int i = 0; i < 1; ++i)
     {
         using namespace std::literals;
-        std::string prefix = "meshQuads["s + std::to_string(i);
-        MeshGPUQuad& mesh = rayTracedMeshes[i];
-        waterShader->setFloat(std::string(prefix + "].roughness"s), mesh.roughness);
-        waterShader->setFloat(std::string(prefix + "].metallic"s), mesh.metallic);
-        waterShader->setVec3(std::string(prefix + "].albedo"s), mesh.albedo);
-        waterShader->setMat4(std::string(prefix + "].model"s), mesh.model);
+        std::string prefix = "meshSphere["s + std::to_string(i);
+        waterShader->setMat4(std::string(prefix + "].model"s), physicScene->physicalObjects[i]->model);
 
-        // TODO MODIFY SHADER IF MODIFY HERE
-        const int nb_mesh = 4;
-        for (size_t j = 0; j < nb_mesh; j++)
-        {
-            waterShader->setVec3(std::string(prefix + "].vertices[" + std::to_string(j) + "]"s), mesh.vertices[j]);
-            waterShader->setVec3(std::string(prefix + "].normals[" + std::to_string(j) + "]"s), mesh.normals[j]);
-            waterShader->setVec2(std::string(prefix + "].uvs[" + std::to_string(j) + "]"s), mesh.uvs[j]);
-        }
     }
+    waterShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(model))));
+    waterShader->setFloat("u_dx", physicScene->water->spacing / physicScene->water->sizea);
+    waterShader->setFloat("u_dz", physicScene->water->spacing / physicScene->water->sizeb);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[1-physicScene->water->toggle]);
-
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, skybox->cubemapTexture);
    /* glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D,physicScene->physicalObjects[physicScene->indexSphereSelected]->geometryTexture[0]);
     glActiveTexture(GL_TEXTURE2);
@@ -479,7 +549,6 @@ void ManualPBRRenderer::renderWater() {
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, physicScene->physicalObjects[physicScene->indexSphereSelected]->geometryTexture[3]);*/
 
-    
     physicScene->water->render();
 
     // DEBUG
@@ -500,7 +569,7 @@ bool ManualPBRRenderer::isClickOnWater()
     Vec3f rayDir = getRayFromClick(lastX, lastY);
     Vec3f rayOrigin = camera.Position;
 
-    Vec3f posPlan = physicScene->water->vertexPositions[0];
+    Vec3f posPlan = Vec3f(physicScene->water->modelWater * Vec4f(physicScene->water->vertexPositions[0],1));
     // NORMAL VERS LE HAUT ATTENTION ! 
     Vec3f normalPlan = Vec3f(0.0f, 1.0f, 0.0f);
 
@@ -620,4 +689,16 @@ void ManualPBRRenderer::handleWindowResize(GLFWwindow* window, int width, int he
     SCR_WIDTH = width;
     SCR_HEIGHT = height;
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+}
+
+void ManualPBRRenderer::updateDeltaTime() {
+    // Measure speed
+    double currentTime = glfwGetTime();
+    nbFrames++;
+    if (currentTime - lastTime >= 1.0) { // If last cout was more than 1 sec ago
+        //std::cout << double(nbFrames) << std::endl;
+        deltaTime = 1.f / nbFrames;
+        nbFrames = 0;
+        lastTime += 1.0;
+    }
 }

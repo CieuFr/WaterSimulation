@@ -33,6 +33,24 @@ struct MeshGPUQuad {
     int nb_vertices;
 };
 
+
+
+struct MeshGPUSphere {
+    glm::vec3 albedo;
+    float metallic;
+    float roughness;
+    glm::vec3 vertices[100];
+    glm::vec3 normals[100];
+    glm::vec2 uvs[100];
+    int indices[500];
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 projection;
+    int nb_vertices;
+    int nb_indices;
+
+};
+
 class ManualPBRRenderer : public BaseRenderer
 {
 public:
@@ -125,7 +143,6 @@ public:
     Mat4f modelTop = MAT4F_ID;
     Mat4f modelBot = MAT4F_ID;
 
-    Mat4f modelWater = MAT4F_ID;
     GLuint waterHeightFBO[2];
     GLuint waterHeightTexture[2];
 
@@ -139,6 +156,8 @@ public:
 
     // RAYTRACED 
     std::vector<MeshGPUQuad> rayTracedMeshes;
+    std::vector<MeshGPUSphere> rayTracedMeshesSphere;
+
     float nb_meshes_gpu;
 
 
@@ -164,9 +183,16 @@ public:
     void initWater();
     void renderWater();
 
+    void renderSphere();
+
     void initRayTracedObjects();
 
     bool isClickOnWater();
+
+    float lastTime = 0;
+    int nbFrames = 0;
+    float deltaTime = 0.f;
+    void updateDeltaTime();
 
     void dragObject();
     Vec3f getRayFromClick(float x, float y);

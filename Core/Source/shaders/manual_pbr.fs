@@ -4,32 +4,12 @@ in vec2 TexCoords;
 in vec3 WorldPos;
 in vec3 Normal;
 
-struct MeshGPUQuad {
-   vec3 albedo;
-   float metallic;
-   float roughness;
-   vec3 vertices[4];
-   vec3 normals[4];
-   vec2 uvs[4];
-   mat4 model;
-};
-
-// TODO MODIFIER LE NOMBRE DE MESH
-const int n_meshes = 5;
-uniform MeshGPUQuad meshQuads[n_meshes];
-
-bool debug = false;
-
-
 // material parameters
 uniform vec3 albedo;
 uniform float metallic;
 uniform float roughness;
 uniform float ao;
-uniform mat4 projection;
-uniform mat4 view;
-uniform vec2 resolution;
-uniform int samples;
+uniform bool isSphere;
 
 
 // lights
@@ -79,22 +59,19 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
+// ----------------------------------------------------------------------------
+void main()
+{		
+    vec3 dX     = dFdx(WorldPos);
+    vec3 dY     = dFdy(WorldPos);
+    vec3 normalF = normalize(cross(dX, dY));
 
+    vec3 N = normalize(Normal);
+    vec3 V = normalize(camPos - WorldPos);
 
-highp float rand(vec2 co)
-{
-    highp float a = 12.9898;
-    highp float b = 78.233;
-    highp float c = 43758.5453;
-    highp float dt= dot(co.xy ,vec2(a,b));
-    highp float sn= mod(dt,3.14);
-    return fract(sin(sn) * c);
-}
- 
-vec3 shade(vec3 point, vec3 normal, vec3 camPos, vec3 albedo, float metallic, float roughness,vec3 lightPositions[4], vec3 lightColors[4]){
-
-    vec3 N = normalize(normal);
-    vec3 V = normalize(camPos - point);
+    if(!isSphere){
+        N = normalF;
+    }
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
@@ -136,28 +113,9 @@ vec3 shade(vec3 point, vec3 normal, vec3 camPos, vec3 albedo, float metallic, fl
         float NdotL = max(dot(N, L), 0.0);        
 
         // add to outgoing radiance Lo
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again 
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
     }   
-
-    return Lo;
-}
-
-
-// ----------------------------------------------------------------------------
-void main()
-{  
-
-    vec3 dX     = dFdx(WorldPos);
-    vec3 dY     = dFdy(WorldPos);
-    vec3 normalF = normalize(cross(dX, dY));
-    vec3 vecteurIncident = normalize(WorldPos - camPos);
-
-
-    vec3 Lo;
-    vec2 uv = gl_FragCoord.xy / resolution.xy;
- 
-    Lo = shade(WorldPos,normalF,camPos,albedo,metallic,roughness,lightPositions,lightColors);
-
+    
     // ambient lighting (note that the next IBL tutorial will replace 
     // this ambient lighting with environment lighting).
     vec3 ambient = vec3(0.03) * albedo * ao;
@@ -169,17 +127,5 @@ void main()
     // gamma correct
     color = pow(color, vec3(1.0/2.2)); 
 
-
-if(debug){
-    
-
-} else {
     FragColor = vec4(color, 1.0);
-    
 }
-    
-
-
-   
-}
-

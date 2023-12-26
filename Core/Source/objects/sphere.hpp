@@ -30,8 +30,8 @@ public:
         glGenBuffers(1, &vbo);
         glGenBuffers(1, &ebo);
 
-        const unsigned int X_SEGMENTS = 64;
-        const unsigned int Y_SEGMENTS = 64;
+        const unsigned int X_SEGMENTS = 8;
+        const unsigned int Y_SEGMENTS = 8;
         const float PI = 3.14159265359f;
         for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
         {
@@ -49,29 +49,25 @@ public:
             }
         }
 
-        bool oddRow = false;
         for (unsigned int y = 0; y < Y_SEGMENTS; ++y)
         {
-            if (!oddRow) // even rows: y == 0, y == 2; and so on
+            for (unsigned int x = 0; x < X_SEGMENTS; ++x)
             {
-                for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
-                {
-                    indices.push_back(y * (X_SEGMENTS + 1) + x);
-                    indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
-                }
+                // Premier triangle de chaque quad
+                indices.push_back(y * (X_SEGMENTS + 1) + x);
+                indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
+                indices.push_back(y * (X_SEGMENTS + 1) + x + 1);
+
+                // Deuxième triangle de chaque quad
+                indices.push_back(y * (X_SEGMENTS + 1) + x + 1);
+                indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
+                indices.push_back((y + 1) * (X_SEGMENTS + 1) + x + 1);
+
+               
             }
-            else
-            {
-                for (int x = X_SEGMENTS; x >= 0; --x)
-                {
-                    indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
-                    indices.push_back(y * (X_SEGMENTS + 1) + x);
-                }
-            }
-            oddRow = !oddRow;
         }
         indexCount = static_cast<unsigned int>(indices.size());
-
+       
         std::vector<float> data;
         for (unsigned int i = 0; i < positions.size(); ++i)
         {
@@ -90,6 +86,7 @@ public:
                 data.push_back(uv[i].y);
             }
         }
+
         glBindVertexArray(sphereVAO);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), &data[0], GL_STATIC_DRAW);
@@ -112,7 +109,7 @@ public:
 
     void render() {
         glBindVertexArray(sphereVAO);
-        glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
     }
 
 private:

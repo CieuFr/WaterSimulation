@@ -14,15 +14,30 @@ struct MeshGPUQuad {
    mat4 model;
 };
 
+struct MeshGPUSphere {
+   vec3 albedo;
+   float metallic;
+   float roughness;
+   vec3 vertices[100];
+   vec3 normals[100];
+   vec2 uvs[100];
+   int indices[500];
+   mat4 model;
+   int nb_indices;
+   int nb_vertices;
+};
+
 // TODO MODIFIER LE NOMBRE DE MESH
 const int n_meshes = 5;
 uniform MeshGPUQuad meshQuads[n_meshes];
-//uniform mat4 modelSphere;
-//4225
-// uniform sampler2D position_sphere;
-// uniform sampler2D normals_sphere;
-// uniform sampler2D uvs_sphere;
-// uniform sampler2D indices_sphere;
+
+const int n_meshes_sphere = 1;
+uniform MeshGPUSphere meshSphere[n_meshes_sphere];
+
+uniform mat4 modelSphere;
+
+uniform sampler2D water;
+uniform samplerCube skybox;
 
 bool debug = false;
 
@@ -106,13 +121,11 @@ bool intersectTriangle(Ray p_ray, vec3 v0, vec3 v1, vec3 v2, vec3 n0, vec3 n1, v
 
     
 
-
-
-bool intersectScene(Ray ray, float t_min, float t_max, MeshGPUQuad meshes[n_meshes], out IntersectInfo rec)
+bool intersectScene(Ray ray, float t_min, float t_max, out IntersectInfo rec)
 {
         bool hit_anything = false;
         float closest_so_far = t_max;
-
+        MeshGPUQuad meshes[n_meshes] = meshQuads;
         // INTERSECT QUADS ONLY
         for(int i = 0; i < n_meshes;i++){
             MeshGPUQuad mesh = meshes[i];
@@ -159,40 +172,41 @@ bool intersectScene(Ray ray, float t_min, float t_max, MeshGPUQuad meshes[n_mesh
             }
 
         }
+        
+        MeshGPUSphere meshesSphere[n_meshes_sphere] = meshSphere;
 
-        // SPHERE 8320
-        // for(int i = 0; i < 8320; i = i+3){
+        for(int i = 0; i < n_meshes_sphere; i++ ){
+            for(int j = 0; j < meshesSphere[i].nb_indices; j++){
 
-        //     int index1 = int(texture2D(indices_sphere, getUVFromIndex(i)).r);
-        //     int index2 = int(texture2D(indices_sphere, getUVFromIndex(i+1)).r);
-        //     int index3 = int(texture2D(indices_sphere, getUVFromIndex(i+2)).r);
-            
-        //     vec3 v1 = vec4(modelSphere * vec4( texture2D(position_sphere, getUVFromIndex(index1)).xyz,1)).rgb;
-        //     vec3 v2 = vec4(modelSphere * vec4( texture2D(position_sphere, getUVFromIndex(index2)).xyz,1)).rgb;
-        //     vec3 v3 = vec4(modelSphere * vec4( texture2D(position_sphere, getUVFromIndex(index3)).xyz,1)).rgb;
+                int index1 = meshesSphere[i].indices[j*3];
+                int index2 = meshesSphere[i].indices[j*3+1];
+                int index3 = meshesSphere[i].indices[j*3+2];
 
-        //     vec3 n1 = vec4(modelSphere * vec4( texture2D(normals_sphere, getUVFromIndex(index1)).xyz,1)).rgb;
-        //     vec3 n2 = vec4(modelSphere * vec4( texture2D(normals_sphere, getUVFromIndex(index2)).xyz,1)).rgb;
-        //     vec3 n3 = vec4(modelSphere * vec4( texture2D(normals_sphere, getUVFromIndex(index3)).xyz,1)).rgb;
-        //     float t,u,v;
-        //     vec3 n;
-        //     if(intersectTriangle(ray,v1,v2,v3,n1,n2,n3,t,n,u,v))
-        //     {
-        //         if ( t >= t_min && t <= closest_so_far){
-        //             hit_anything = true;
-        //             rec.albedo = vec3(1,0,0);
-        //             rec.point = ray.origin + ray.direction *t;
-        //             closest_so_far = t;
-        //             rec.distance = t;
-        //             rec.normal = n;
-        //         }
-        //     }
-        // }
+                
 
-      
+                vec3 v1 = vec4(meshesSphere[i].model * vec4( meshesSphere[i].vertices[index1],1)).rgb;
+                vec3 v2 = vec4(meshesSphere[i].model * vec4( meshesSphere[i].vertices[index2],1)).rgb;
+                vec3 v3 = vec4(meshesSphere[i].model * vec4( meshesSphere[i].vertices[index3],1)).rgb;
 
-
-        return hit_anything;
+                vec3 n1 = vec4( vec4(meshesSphere[i].normals[index1] ,1)).rgb;
+                vec3 n2 = vec4( vec4(meshesSphere[i].normals[index2] ,1)).rgb;
+                vec3 n3 = vec4( vec4(meshesSphere[i].normals[index3] ,1)).rgb;
+                 float t,u,v;
+                vec3 n;
+                if(intersectTriangle(ray,v1,v2,v3,n1,n2,n3,t,n,u,v))
+                {
+                    if ( t >= t_min && t <= closest_so_far){
+                        hit_anything = true;
+                        rec.albedo = vec3(1,0,0);
+                        rec.point = ray.origin + ray.direction *t;
+                        closest_so_far = t;
+                        rec.distance = t;
+                        rec.normal = n;
+                    }
+                }
+            }
+        }
+    return hit_anything;
 }
 
 
@@ -209,7 +223,6 @@ uniform int samples;
 
 
 
-uniform sampler2D water;
 
 
 // lights
@@ -336,8 +349,11 @@ void main()
 
     vec3 dX     = dFdx(WorldPos);
     vec3 dY     = dFdy(WorldPos);
-    vec3 normalF = normalize(cross(dX, dY));
+    vec3 normalF2 = normalize(cross(dX, dY));
+    vec3 normalF = Normal;
 
+
+    
     vec3 reflectedColor = vec3(0,0,0);
     vec3 refractedColor = vec3(0,0,0);
     vec2 uv = gl_FragCoord.xy / resolution.xy;
@@ -347,41 +363,43 @@ void main()
     Ray rayonReflechi = Ray(WorldPos,vecteurReflechi);
     IntersectInfo rec;
 
-    if(intersectScene(rayonReflechi, 0.001, 100000, meshQuads, rec)){
+    if(intersectScene(rayonReflechi, 0.001, 100000, rec)){
         reflectedColor = shade(rec.point, rec.normal, camPos, rec.albedo, metallic, roughness, lightPositions, lightColors);    
     } else {
-        reflectedColor = skyColor(rayonReflechi);
+        reflectedColor = texture(skybox, rayonReflechi.direction).rgb;
     }
-
+ 
     vec3 vecteurRefracte;
 
     vec3 Lo;
     float n1 = 1.f;
     float n2 = 1.33f;
     float eta = n1/n2;
-    float cosI = dot(-vecteurIncident,normalF);
-    float sinI = sqrt(1.0 - cosI*cosI);
-    float sinT = (eta * sinI);
-    float cosT = sqrt(1.0 - sinT * sinT);
 
-    cosI = max(cosI,0.f);
-    cosT = max(cosT,0.f);
+    
+    // float cosI = dot(-vecteurIncident,normalF);
+    // float sinI = sqrt(1.0 - cosI*cosI);
+    // float sinT = (eta * sinI);
+    // float cosT = sqrt(1.0 - sinT * sinT);
 
-    float reflectionCoefficientP = pow((n1 * cosI - n2 *cosT) / (n1 * cosI + n2 * cosT),2);
-    float reflectionCoefficientS = pow((n1 * cosT - n2 *cosI) / (n1 * cosT + n2 * cosI),2);
+    // cosI = max(cosI,0.f);
+    // cosT = max(cosT,0.f);
 
-    float reflectedProportion = 0.5 * ( reflectionCoefficientP + reflectionCoefficientS );
+    // float reflectionCoefficientP = pow((n1 * cosI - n2 *cosT) / (n1 * cosI + n2 * cosT),2);
+    // float reflectionCoefficientS = pow((n1 * cosT - n2 *cosI) / (n1 * cosT + n2 * cosI),2);
 
-    if ( reflectedProportion < 1 ){
-        vecteurRefracte = refract(vecteurIncident,normalF,eta);
-        Ray rayonRefracte = Ray(WorldPos,vecteurRefracte);
-        
-        if(intersectScene(rayonRefracte, 0.001, 100000, meshQuads, rec)){
-            refractedColor = shade(rec.point, rec.normal, camPos, rec.albedo, metallic, roughness, lightPositions, lightColors);
-        } else {
-            refractedColor = skyColor(rayonRefracte);
-        }
+    // float reflectedProportion = 0.5 * ( reflectionCoefficientP + reflectionCoefficientS );
+
+    
+    vecteurRefracte = refract(vecteurIncident,normalF,eta);
+    Ray rayonRefracte = Ray(WorldPos,vecteurRefracte);
+    
+    if(intersectScene(rayonRefracte, 0.001, 100000, rec)){
+        refractedColor = shade(rec.point, rec.normal, camPos, rec.albedo, metallic, roughness, lightPositions, lightColors);
+    } else {
+        refractedColor = texture(skybox, rayonRefracte.direction).rgb;
     }
+    
 
     float refractiveFactor = dot(-vecteurIncident, normalF);
     refractiveFactor = pow(refractiveFactor,2);
