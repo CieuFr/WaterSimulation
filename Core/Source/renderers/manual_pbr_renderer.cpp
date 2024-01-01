@@ -289,7 +289,7 @@ void ManualPBRRenderer::initCornellBox() {
     // right
     modelRight = glm::translate(modelRight, Vec3f(4.0f, -2.f, 0.0f));
     modelRight = glm::scale(modelRight, scale);
-    modelRight = glm::rotate(modelRight, glm::radians(90.0f), glm::vec3(.0f, 1.0f, 0.0f));
+    modelRight = glm::rotate(modelRight, glm::radians(-90.0f), glm::vec3(.0f, 1.0f, 0.0f));
 
     // left
     modelLeft = glm::translate(modelLeft, Vec3f(-4.0f, -2.f, 0.0f));
@@ -314,7 +314,7 @@ void ManualPBRRenderer::renderCornellBox() {
     wallShader->setMat4("model", modelBack);
     wallShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(modelBack))));
     back->render();
-
+     
     // TOP   
     wallShader->setVec3("albedo", colorTop);
     wallShader->setMat4("model", modelTop);

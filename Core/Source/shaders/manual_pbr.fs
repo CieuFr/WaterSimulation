@@ -62,15 +62,13 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 // ----------------------------------------------------------------------------
 void main()
 {		
-    vec3 dX     = dFdx(WorldPos);
-    vec3 dY     = dFdy(WorldPos);
-    vec3 normalF = normalize(cross(dX, dY));
 
     vec3 N = normalize(Normal);
     vec3 V = normalize(camPos - WorldPos);
-
-    if(!isSphere){
-        N = normalF;
+    vec3 vecteurIncident = normalize(WorldPos - camPos);
+    bool outside = dot(N, -vecteurIncident) < 0;
+    if(outside){
+        discard;
     }
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 

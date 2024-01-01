@@ -273,6 +273,35 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+float fresnelProp(vec3 I, vec3 N, float ior)
+{
+    float kr;
+    float cosi = clamp(dot(I, N),-1, 1 );
+    float etai = 1, etat = ior;
+    if (cosi > 0) { 
+        float temp = etai;
+        etai = etat;
+        etat = temp;
+}
+
+    // Compute sini using Snell's law
+    float sint = etai / etat * sqrt(max(0.f, 1 - cosi * cosi));
+    // Total internal reflection
+    if (sint >= 1) {
+        kr = 1;
+    }
+    else {
+        float cost = sqrt(max(0.f, 1 - sint * sint));
+        cosi = abs(cosi);
+        float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+        float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+        kr = (Rs * Rs + Rp * Rp) / 2;
+    }
+    // As a consequence of the conservation of energy, the transmittance is given by:
+    //kt = 1 - kr;
+    return kr;
+}
+
 
 highp float rand(vec2 co)
 {
@@ -347,20 +376,20 @@ vec3 shade(vec3 point, vec3 normal, vec3 camPos, vec3 albedo, float metallic, fl
 void main()
 {  
 
-    vec3 dX     = dFdx(WorldPos);
-    vec3 dY     = dFdy(WorldPos);
-    vec3 normalF2 = normalize(cross(dX, dY));
     vec3 normalF = Normal;
-
-
     
     vec3 reflectedColor = vec3(0,0,0);
     vec3 refractedColor = vec3(0,0,0);
+    
     vec2 uv = gl_FragCoord.xy / resolution.xy;
     vec3 vecteurIncident = normalize(WorldPos - camPos);
     Ray rayonIncident = Ray(WorldPos, vecteurIncident);
     vec3 vecteurReflechi = reflect(vecteurIncident,normalF);
-    Ray rayonReflechi = Ray(WorldPos,vecteurReflechi);
+ vec3 bias = 0.001 * normalF;
+    bool outside = dot(normalF, -vecteurIncident) < 0;
+    vec3 originReflect = outside ? WorldPos + bias : WorldPos - bias;
+
+    Ray rayonReflechi = Ray(originReflect,vecteurReflechi);
     IntersectInfo rec;
 
     if(intersectScene(rayonReflechi, 0.001, 100000, rec)){
@@ -374,32 +403,58 @@ void main()
     vec3 Lo;
     float n1 = 1.f;
     float n2 = 1.33f;
-    float eta = n1/n2;
 
-
-    float cosTheta = dot(normalize(-vecteurIncident), normalize(normalF));
-    float theta = acos(clamp(cosTheta, -1.0, 1.0));
-
-    
-    float R0 = pow((n1 - n2) / (n1 + n2), 2.0);
-    vec3 F0 = vec3(mix(R0, 1.0, 0.5)); 
-    vec3 fresnel = fresnelSchlick(cosTheta, F0);
-
-
-    
-    vecteurRefracte = refract(vecteurIncident,normalF,eta);
-    Ray rayonRefracte = Ray(WorldPos,vecteurRefracte);
-    
-    if(intersectScene(rayonRefracte, 0.001, 100000, rec)){
-        refractedColor = shade(rec.point, rec.normal, camPos, rec.albedo, metallic, roughness, lightPositions, lightColors);
-    } else {
-        refractedColor = texture(skybox, rayonRefracte.direction).rgb;
+    float cosTheta;
+   
+   
+    float fresnel = fresnelProp(vecteurIncident,normalF,n2);
+    vec3 Nrefr = Normal;
+    float NdotI = dot(Nrefr,vecteurIncident);
+    float etai = 1, etat = n2; 
+    if (NdotI < 0) {
+        // we are outside the surface, we want cos(theta) to be positive
+        NdotI = -NdotI;
+        Nrefr = Normal;
+    }
+    else {
+        // we are inside the surface, cos(theta) is already positive but reverse normal direction
+        Nrefr = -Normal;
+        // swap the refraction indices
+        float temp = etai;
+        etai = etat;
+        etat = temp;
     }
     
-    float refractiveFactor = dot(-vecteurIncident, normalF);
-    refractiveFactor = pow(refractiveFactor,2);
+    float eta = etai / etat; 
 
-    Lo = mix(reflectedColor,refractedColor,fresnel);
+    
+    if(fresnel < 1) {
+
+        vecteurRefracte = refract(vecteurIncident,Nrefr,eta);
+   vec3 originRefract = outside ? WorldPos + bias : WorldPos - bias;
+        Ray rayonRefracte = Ray(originRefract,vecteurRefracte);
+
+         if(intersectScene(rayonRefracte, 0.001, 100000, rec)){
+            refractedColor = shade(rec.point, rec.normal, camPos, rec.albedo, metallic, roughness, lightPositions, lightColors);
+         } else {
+             refractedColor = texture(skybox, rayonRefracte.direction).rgb;
+         }
+
+          Lo = reflectedColor * fresnel + refractedColor * (1 - fresnel);
+
+    } else {
+
+         Lo = reflectedColor;
+    }
+
+   
+      
+
+    
+
+     
+
+   
 
     // ambient lighting (note that the next IBL tutorial will replace 
     // this ambient lighting with environment lighting).
@@ -412,10 +467,10 @@ void main()
     // gamma correct
     color = pow(color, vec3(1.0/2.2)); 
 
-debug = false;
+
 if(debug){
 
-    FragColor = vec4(fresnel,1);
+   
     
 
 } else {
