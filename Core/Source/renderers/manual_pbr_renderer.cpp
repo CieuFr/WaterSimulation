@@ -273,26 +273,26 @@ void ManualPBRRenderer::initCornellBox() {
     Vec3f scale = Vec3f(4.0f, 4.0f, 4.0f);
 
     // back
-    modelBack = glm::translate(modelBack, Vec3f(0.0f, 0.0f, -3.0f));
+    modelBack = glm::translate(modelBack, Vec3f(0.0f, -2.0f, -4.0f));
     modelBack = glm::scale(modelBack, scale);
 
     // top
-    modelTop = glm::translate(modelTop, Vec3f(0.0f, 3.0f, 0.0f));
+    modelTop = glm::translate(modelTop, Vec3f(0.0f, -2.0f, 4.0f));
     modelTop = glm::scale(modelTop, scale);
-    modelTop = glm::rotate(modelTop, glm::radians(60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    modelTop = glm::rotate(modelTop, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
     // bot
-    modelBot = glm::translate(modelBot, Vec3f(0.0f, -3.0f, 0.0f));
+    modelBot = glm::translate(modelBot, Vec3f(0.0f, -4.0f, 0.0f));
     modelBot = glm::scale(modelBot, scale);
     modelBot = glm::rotate(modelBot, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
     // right
-    modelRight = glm::translate(modelRight, Vec3f(3.0f, .0f, 0.0f));
+    modelRight = glm::translate(modelRight, Vec3f(4.0f, -2.f, 0.0f));
     modelRight = glm::scale(modelRight, scale);
     modelRight = glm::rotate(modelRight, glm::radians(90.0f), glm::vec3(.0f, 1.0f, 0.0f));
 
     // left
-    modelLeft = glm::translate(modelLeft, Vec3f(-3.0f, .0f, 0.0f));
+    modelLeft = glm::translate(modelLeft, Vec3f(-4.0f, -2.f, 0.0f));
     modelLeft = glm::scale(modelLeft, scale);
     modelLeft = glm::rotate(modelLeft, glm::radians(90.0f), glm::vec3(.0f, 1.0f, 0.0f));
 
@@ -357,7 +357,6 @@ void ManualPBRRenderer::renderSphere() {
         wallShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(physicScene->physicalObjects[0]->model))));
         physicScene->render();
     }
-
 
 }
 Vec3f ManualPBRRenderer::getRayFromClick(float x, float y) {

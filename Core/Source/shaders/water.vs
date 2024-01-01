@@ -67,7 +67,7 @@ void main()
 
     vec3 newNormal = normalize(cross(p3-p1,p4-p2));
 
-    Normal = normalMatrix * newNormal;   
+    Normal = normalMatrix * -newNormal;   
 
     gl_Position =  projection * view * vec4(WorldPos, 1.0);
 }

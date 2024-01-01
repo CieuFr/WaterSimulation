@@ -376,19 +376,15 @@ void main()
     float n2 = 1.33f;
     float eta = n1/n2;
 
+
+    float cosTheta = dot(normalize(-vecteurIncident), normalize(normalF));
+    float theta = acos(clamp(cosTheta, -1.0, 1.0));
+
     
-    // float cosI = dot(-vecteurIncident,normalF);
-    // float sinI = sqrt(1.0 - cosI*cosI);
-    // float sinT = (eta * sinI);
-    // float cosT = sqrt(1.0 - sinT * sinT);
+    float R0 = pow((n1 - n2) / (n1 + n2), 2.0);
+    vec3 F0 = vec3(mix(R0, 1.0, 0.5)); 
+    vec3 fresnel = fresnelSchlick(cosTheta, F0);
 
-    // cosI = max(cosI,0.f);
-    // cosT = max(cosT,0.f);
-
-    // float reflectionCoefficientP = pow((n1 * cosI - n2 *cosT) / (n1 * cosI + n2 * cosT),2);
-    // float reflectionCoefficientS = pow((n1 * cosT - n2 *cosI) / (n1 * cosT + n2 * cosI),2);
-
-    // float reflectedProportion = 0.5 * ( reflectionCoefficientP + reflectionCoefficientS );
 
     
     vecteurRefracte = refract(vecteurIncident,normalF,eta);
@@ -400,19 +396,10 @@ void main()
         refractedColor = texture(skybox, rayonRefracte.direction).rgb;
     }
     
-
     float refractiveFactor = dot(-vecteurIncident, normalF);
     refractiveFactor = pow(refractiveFactor,2);
-   // debug = true;
 
-     //FragColor = vec4(refractiveFactor,refractiveFactor,refractiveFactor,0);
-    // FragColor = vec4(reflectedColor,0);
-
-    Lo = mix(reflectedColor,refractedColor,refractiveFactor);
-    //Lo = reflectedProportion * reflectedColor + (1 - reflectedProportion) * refractedColor;
-
-
-    //Lo = shade(WorldPos,normalF,camPos,albedo,metallic,roughness,lightPositions,lightColors);
+    Lo = mix(reflectedColor,refractedColor,fresnel);
 
     // ambient lighting (note that the next IBL tutorial will replace 
     // this ambient lighting with environment lighting).
@@ -425,8 +412,10 @@ void main()
     // gamma correct
     color = pow(color, vec3(1.0/2.2)); 
 
-
+debug = false;
 if(debug){
+
+    FragColor = vec4(fresnel,1);
     
 
 } else {
