@@ -290,6 +290,7 @@ public:
 			glNamedFramebufferDrawBuffers(waterHeightFBO[i], 2, _drawBuffers);
 		}
 
+		glCreateTextures(GL_TEXTURE_2D, 1, &bodyChangeTexture);
 		glTextureStorage2D(bodyChangeTexture, 1, GL_R32F, numX, numZ);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -301,10 +302,12 @@ public:
 
 
 	void update(float dt) {
+		
+		std::cout << "toogle : " << toggle << std::endl;
 		waterMovement->use();
 		
 		glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glBindTextureUnit(0, waterHeightTexture[1 - toggle]);
 		glBindTextureUnit(1, waterVelocityTexture[1 - toggle]);
 
@@ -320,28 +323,56 @@ public:
 		waterMovement->setFloat("u_vd", l_vd);
 		defferedQuad->render();
 
-		
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		toggle = 1 - toggle;
-
+		
 	}
 
 	void waterDrop(float dropX, float dropY ) {
-
+		
 		dropOnWater->use();
 		glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glBindTextureUnit(0, waterHeightTexture[1 - toggle]);
 		glBindTextureUnit(1, waterVelocityTexture[1 - toggle]);
 		dropOnWater->setVec2("center", dropX, dropY);
 		defferedQuad->render();
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		toggle = 1 - toggle;
+		
 	}
 
+	bool testObjectBool = false;
 	void heightObjectUpdate() {
+		
+		if (testObjectBool) {
 
-		objectWaterShader->use();
+			objectWaterShader->use();
+					
+			glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
+			//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glBindTextureUnit(0, waterHeightTexture[1 - toggle]);
+			glBindTextureUnit(1, waterVelocityTexture[1 - toggle]);
+			glBindTextureUnit(2, bodyChangeTexture);
+			objectWaterShader->setFloat("alpha", 0.1f);
+			defferedQuad->render();
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+			toggle = 1 - toggle;
+			
+
+		}
+
+		
+
+
+
+
+
+
+
+
+		/*objectWaterShader->use();
 
 		glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[toggle]);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -353,7 +384,7 @@ public:
 		defferedQuad->render();
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		toggle = 1 - toggle;
+		toggle = 1 - toggle;*/
 	}
 
 };

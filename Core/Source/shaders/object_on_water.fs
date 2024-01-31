@@ -17,13 +17,12 @@ void main()
     float h_obj =  texture(u_object, TexCoords).r;  
     float h =  texture(u_height, TexCoords).r;  
     float vel =  texture(u_velocity, TexCoords).r; 
-
     float bodyChange = h_obj - h;
     float newH = h + alpha * bodyChange;
 
-    o_height = h;
+// TODO REMETTRE NEW H
+    o_height = newH;
     o_velocity = vel;
 
-   
 }
 

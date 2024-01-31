@@ -101,9 +101,6 @@ public:
 	PhysicsScene() {
 		water = new Water(tankSize.x, tankSize.z, waterHeight, waterSpacing);
 
-
-
-
 	};
 
      ~PhysicsScene() = default;
@@ -197,7 +194,7 @@ public:
 		 float h1 = 1.0 / water->spacing;
 		 float h2 = water->spacing * water->spacing;
 		 float* data = new float[water->numX * water->numZ];
-		 glGetTextureImage(water->waterHeightTexture[water->toggle], 0, GL_RED, GL_FLOAT, water->numX * water->numZ * sizeof(float), data);
+		 glGetTextureImage(water->waterHeightTexture[1- water->toggle], 0, GL_RED, GL_FLOAT, water->numX * water->numZ * sizeof(float), data);
 
 		 // pour chaque objet physique de la scene 
 
@@ -220,9 +217,9 @@ public:
 					 float r2 = (pos.x - x) * (pos.x - x) + (pos.z - z) * (pos.z - z);
 					 if (r2 < br * br) {
 						 float bodyHalfHeight = sqrt(br * br - r2);
-						 float waterHeight = data[xi * water->numZ + zi]+ 0.8f;
-
-						 float bodyMin = glm::max(pos.y - bodyHalfHeight, 0.0f);
+						 float waterHeight = data[xi * water->numZ + zi] + 0.8f;
+						 // ICI
+						 float bodyMin = glm::max(pos.y - bodyHalfHeight, -tankSize.y / 2 + physicalObjects[indexSphereSelected]->radius);
 						 float bodyMax = glm::min(pos.y + bodyHalfHeight, waterHeight);
 						 float bodyHeight = glm::max(bodyMax - bodyMin, 0.0f);
 						 if (bodyHeight > 0.0) {
@@ -254,14 +251,15 @@ public:
 		
 		 for (int i = 0; i < water->numCells; i++) {
 			 float bodyChange = water->bodyHeights[i] - water->prevHeights[i];
-			 water->bodyChange[i] = bodyChange;
+			 water->bodyChange[i] = water->bodyHeights[i];
 
-			 water->heights[i] += water->alpha * bodyChange;
+			 //water->heights[i] += water->alpha * bodyChange;
 		 }
 
-		 //glTextureSubImage2D(water->waterHeightTexture[1 - water->toggle], 0, 0, 0, water->numX, water->numZ, GL_RED, GL_FLOAT, &water->heights[0]);
+		//glTextureSubImage2D(water->waterHeightTexture[1 - water->toggle], 0, 0, 0, water->numX, water->numZ, GL_RED, GL_FLOAT, &water->heights[0]);
 
-		 glTextureSubImage2D(water->bodyChangeTexture, 0, 0, 0, water->numX, water->numZ, GL_RED, GL_FLOAT, &water->bodyChange[0]);
+		glTextureSubImage2D(water->bodyChangeTexture, 0, 0, 0, water->numX, water->numZ, GL_RED, GL_FLOAT, &water->bodyChange[0]);
+		// glTextureSubImage2D(water->waterHeightTexture[0], 0, 0, 0, water->numX, water->numZ, GL_RED, GL_FLOAT, &water->heights);
 		 water->heightObjectUpdate();
 	
 

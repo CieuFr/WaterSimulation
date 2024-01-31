@@ -565,7 +565,7 @@ void ManualPBRRenderer::renderWater() {
     waterShader->setFloat("u_fresnel",fresnel);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[1-physicScene->water->toggle]);
+    glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[physicScene->water->toggle]);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_CUBE_MAP, skybox->cubemapTexture);
    /* glActiveTexture(GL_TEXTURE1);
@@ -583,12 +583,9 @@ void ManualPBRRenderer::renderWater() {
     glViewport(0, 0, 256,256);
     debugTextureShader->use();
     glActiveTexture(GL_TEXTURE0);
-    //glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[0]);
-     //glBindTexture(GL_TEXTURE_2D, causticTexture);
-     glBindTexture(GL_TEXTURE_2D, physicScene->water->bodyChangeTexture);
+    glBindTexture(GL_TEXTURE_2D, physicScene->water->bodyChangeTexture);
 
-
-    //defferedQuad->render();
+    defferedQuad->render();
 
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 
@@ -645,7 +642,6 @@ void ManualPBRRenderer::renderCaustics() {
 
 }
 
-
 bool ManualPBRRenderer::isClickOnWater()
 {
     GLfloat distance;
@@ -701,6 +697,8 @@ void ManualPBRRenderer::displayUI()
     ImGui::SliderFloat("Metallic", &metallic, 0.05f, 1.0f);
     ImGui::Text("Physic");
     ImGui::SliderFloat("Ball Mass", &ballMass, 0.01f, 2.0f);
+    ImGui::Checkbox("testHeightbool", &physicScene->water->testObjectBool);
+
 
 }
 

@@ -8,7 +8,6 @@
 #include "utils/victor_utils.hpp"
 #include "renderers/manual_pbr_renderer.hpp"
 #include "renderers/compute_renderer.hpp"
-#include "renderers/test_reflection.hpp"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_move_callback(GLFWwindow* window, double xpos, double ypos);
