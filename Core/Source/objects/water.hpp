@@ -67,7 +67,7 @@ public:
 	GLuint waterHeightFBO[2];
 	GLuint waterHeightTexture[2];
 	GLuint waterVelocityTexture[2];
-	GLuint bodyChanceTexture;
+	GLuint bodyChangeTexture;
 
 	Mat4f modelWater = MAT4F_ID;
 
@@ -258,10 +258,8 @@ public:
 					bodyHeights.push_back(0.f);
 					prevHeights.push_back(0.f);
 					bodyChange.push_back(0.f);
-
 				}
 			}
-			
 		}
 
 		glCreateFramebuffers(2, waterHeightFBO);
@@ -292,12 +290,12 @@ public:
 			glNamedFramebufferDrawBuffers(waterHeightFBO[i], 2, _drawBuffers);
 		}
 
-		glTextureStorage2D(bodyChanceTexture, 1, GL_R32F, numX, numZ);
+		glTextureStorage2D(bodyChangeTexture, 1, GL_R32F, numX, numZ);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureSubImage2D(bodyChanceTexture, 0, 0, 0, numX, numZ, GL_RED, GL_FLOAT, &bodyChange[0]);
+		glTextureSubImage2D(bodyChangeTexture, 0, 0, 0, numX, numZ, GL_RED, GL_FLOAT, &bodyChange[0]);
 
 	}
 
@@ -349,14 +347,11 @@ public:
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glBindTextureUnit(0, waterHeightTexture[1 - toggle]);
 		glBindTextureUnit(1, waterVelocityTexture[1 - toggle]);
-		glBindTextureUnit(2, bodyChanceTexture);
+		glBindTextureUnit(2, bodyChangeTexture);
 		objectWaterShader->setFloat("alpha", alpha);
+
 		defferedQuad->render();
 
-		float* data = new float[numX * numZ];
-		glGetTextureImage(waterHeightTexture[1-toggle], 0, GL_RED, GL_FLOAT, numX * numZ * sizeof(float), data);
-		
-		std::cout << data[0] << std::endl;
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		toggle = 1 - toggle;
 	}

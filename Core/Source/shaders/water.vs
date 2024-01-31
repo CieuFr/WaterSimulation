@@ -18,16 +18,18 @@ uniform float u_dz;
 
 void main()
 {
+
+    vec3 p1;
+    vec3 p2;
+    vec3 p3;
+    vec3 p4;
     vec4 waterMeshInfo = texture2D(water, aTexCoords);
     TexCoords = aTexCoords;
     vec3 newPos = aPos;
     newPos.y = waterMeshInfo.r*2;
     WorldPos = vec3(model * vec4(newPos, 1.0));
 
-    vec3 p1;
-    vec3 p2;
-    vec3 p3;
-    vec3 p4;
+   
 
    vec2 dx = vec2(u_dx, 0.0);
 

@@ -39,6 +39,7 @@ uniform mat4 modelSphere;
 uniform sampler2D water;
 uniform samplerCube skybox;
 
+
 bool debug = false;
 
 struct Ray
@@ -220,6 +221,8 @@ uniform mat4 view;
 uniform vec2 resolution;
 uniform int samples;
 
+uniform bool u_overrideFresnel;
+uniform float u_fresnel;
 
 
 
@@ -408,6 +411,9 @@ void main()
    
    
     float fresnel = fresnelProp(vecteurIncident,normalF,n2);
+    if(u_overrideFresnel){
+        fresnel = u_fresnel;
+    }
     vec3 Nrefr = Normal;
     float NdotI = dot(Nrefr,vecteurIncident);
     float etai = 1, etat = n2; 
@@ -431,7 +437,8 @@ void main()
     if(fresnel < 1) {
 
         vecteurRefracte = refract(vecteurIncident,Nrefr,eta);
-   vec3 originRefract = outside ? WorldPos + bias : WorldPos - bias;
+
+        vec3 originRefract = outside ? WorldPos + bias : WorldPos - bias;
         Ray rayonRefracte = Ray(originRefract,vecteurRefracte);
 
          if(intersectScene(rayonRefracte, 0.001, 100000, rec)){

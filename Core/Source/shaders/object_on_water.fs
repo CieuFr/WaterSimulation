@@ -10,10 +10,7 @@ uniform sampler2D u_height;
 uniform sampler2D u_velocity;
 uniform sampler2D u_object;
 
-
 uniform float alpha;
-
-
 
 void main() 
 {
@@ -24,7 +21,7 @@ void main()
     float bodyChange = h_obj - h;
     float newH = h + alpha * bodyChange;
 
-    o_height = newH;
+    o_height = h;
     o_velocity = vel;
 
    

@@ -50,6 +50,7 @@ public :
 			float wx = 0.5 * tankSize.x - radius - 0.5 * tankBorder;
 			float wz = 0.5 * tankSize.z - radius - 0.5 * tankBorder;
 
+
 			if (pos.x < -wx) {
 				pos.x = -wx; velocity.x = -restitution * velocity.x;
 			}
@@ -62,9 +63,13 @@ public :
 			if (pos.z > wz) {
 				pos.z = wz; velocity.z = -restitution * velocity.z;
 			}
-			if (pos.y < radius) {
-				pos.y = radius; velocity.y = -restitution * velocity.y;
+			if (pos.y < - tankSize.y/2 + 2*radius) {
+				pos.y = -tankSize.y/2 + 2*radius ; velocity.y = -restitution * velocity.y;
 			}
+			if (pos.y > tankSize.y /2) {
+				pos.y = tankSize.y / 2; velocity.y = -restitution * velocity.y;
+			}
+
 
 			Vec3f translation = pos - previousPos;
 			model = glm::translate(model, Vec3f(translation));
@@ -250,29 +255,25 @@ public:
 		 for (int i = 0; i < water->numCells; i++) {
 			 float bodyChange = water->bodyHeights[i] - water->prevHeights[i];
 			 water->bodyChange[i] = bodyChange;
-			 //water->heights[i] += water->alpha * bodyChange;
+
+			 water->heights[i] += water->alpha * bodyChange;
 		 }
 
-		 glTextureSubImage2D(water->bodyChanceTexture, 0, 0, 0, water->numX, water->numZ, GL_RED, GL_FLOAT, &water->bodyChange[0]);
+		 //glTextureSubImage2D(water->waterHeightTexture[1 - water->toggle], 0, 0, 0, water->numX, water->numZ, GL_RED, GL_FLOAT, &water->heights[0]);
 
-		 //std::cout << water->bodyChange[500] << std::endl;
-		 // water->heightObjectUpdate();
-		 float* data2 = new float[water->numX * water->numZ];
-		 glGetTextureImage(water->waterHeightTexture[water->toggle], 0, GL_RED, GL_FLOAT, water->numX * water->numZ * sizeof(float), data2);
-
-		// std::cout << data2[0] << std::endl;
+		 glTextureSubImage2D(water->bodyChangeTexture, 0, 0, 0, water->numX, water->numZ, GL_RED, GL_FLOAT, &water->bodyChange[0]);
+		 water->heightObjectUpdate();
+	
 
 	 }
 
 	 void simulate(float deltaTime) {
-
+		 
 		 simulateCoupling(deltaTime);
 		 for (size_t i = 0; i < physicalObjects.size(); i++)
 		 {
 			 physicalObjects[i]->simulate(gravity,deltaTime,tankSize,tankBorder);
-
 		 }
-
 	 }
 
 	 void render() {

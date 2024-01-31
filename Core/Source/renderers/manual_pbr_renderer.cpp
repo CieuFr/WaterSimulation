@@ -5,13 +5,13 @@ void ManualPBRRenderer::init()
 {
 	 camera = { glm::vec3(0.0f, 0.0f, 3.0f) };
 
-     lightingShader = new Shader{ "Source/shaders/1.colors.vs", "Source/shaders/1.colors.fs" };
-     lightCubeShader = new Shader{ "Source/shaders/1.light_cube.vs", "Source/shaders/1.light_cube.fs" };
      skyboxShader = new Shader{ "Source/shaders/skybox.vs", "Source/shaders/skybox.fs" };
      waterShader = new Shader{ "Source/shaders/water.vs", "Source/shaders/water.fs" };
      debugTextureShader = new Shader{ "Source/shaders/debug_texture.vs", "Source/shaders/debug_texture.fs" };
      wallShader = new Shader{ "Source/shaders/manual_pbr.vs", "Source/shaders/manual_pbr.fs" };
      normalShader = new Shader{ "Source/shaders/manual_pbr.vs", "Source/shaders/normal_water.fs" };
+     causticsShader = new Shader{ "Source/shaders/caustics.vs", "Source/shaders/caustics.fs" };
+     //causticsShader = new Shader{ "Source/shaders/screen_space_quad.vs", "Source/shaders/caustics.fs" };
 
      cube = new Cube();
      skybox = new Skybox();
@@ -34,6 +34,8 @@ void ManualPBRRenderer::init()
 
      initWater();
 
+     initCaustics();
+
      // INIT STATIC UNIFORM PARAMETER 
      skyboxShader->use();
      skyboxShader->setInt("skybox", 0);
@@ -55,6 +57,10 @@ void ManualPBRRenderer::init()
      wallShader->setVec2("resolution", resolution);
      wallShader->setBool("isSphere", false);
 
+     causticsShader->use();
+     causticsShader->setInt("water", 0);
+     causticsShader->setMat4("projection", projection);
+
 
 }
 
@@ -74,6 +80,7 @@ void ManualPBRRenderer::render()
     }
 
     // apply physic to water
+     physicScene->physicalObjects[0]->mass = ballMass;
      physicScene->simulate(deltaTime);
 
     // render light source (simply re-render sphere at light positions)
@@ -98,9 +105,10 @@ void ManualPBRRenderer::render()
         waterShader->setVec3("lightColors[" + std::to_string(i) + "]", lightColors[i]);
     }
 
-
     renderWater();
 
+    //renderCaustics();
+     
     renderCornellBox();
 
     renderSphere();
@@ -108,6 +116,7 @@ void ManualPBRRenderer::render()
     // render skybox 
     skyboxShader->use();
     view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // remove translation from the view matrix
+    
     skyboxShader->setMat4("view", view);
     skyboxShader->setMat4("projection", projection);
     skybox->render();
@@ -269,6 +278,7 @@ void ManualPBRRenderer::initRayTracedObjects() {
     std::cout << physicScene->physicalObjects[0]->indices.size() << std::endl;
 
 }
+
 void ManualPBRRenderer::initCornellBox() {
     Vec3f scale = Vec3f(4.0f, 4.0f, 4.0f);
 
@@ -297,6 +307,7 @@ void ManualPBRRenderer::initCornellBox() {
     modelLeft = glm::rotate(modelLeft, glm::radians(90.0f), glm::vec3(.0f, 1.0f, 0.0f));
 
 }
+
 void ManualPBRRenderer::renderCornellBox() {
     
     wallShader->use();
@@ -344,7 +355,6 @@ void ManualPBRRenderer::renderCornellBox() {
 
 }
 
-
 void ManualPBRRenderer::renderSphere() {
 
     wallShader->use();
@@ -359,6 +369,7 @@ void ManualPBRRenderer::renderSphere() {
     }
 
 }
+
 Vec3f ManualPBRRenderer::getRayFromClick(float x, float y) {
 
     float normalizedX = (2.0f * x) / SCR_WIDTH - 1.0f;
@@ -394,6 +405,40 @@ void ManualPBRRenderer::dragObject() {
     
 }
 
+void ManualPBRRenderer::initCaustics() {
+
+    std::vector<float>					v;
+
+    for (unsigned int i = 0; i < 256 * 256; i++)
+    {
+        if (i > 500 && i < 40000) {
+            v.push_back(1.f);
+        }
+        else {
+            v.push_back(0.f);
+        }
+            
+    }
+
+    GLenum drawBuffer[1] = { GL_COLOR_ATTACHMENT0 };
+    glCreateFramebuffers(1, &causticFBO);
+
+    glCreateTextures(GL_TEXTURE_2D, 1, &causticTexture);
+    glTextureStorage2D(causticTexture, 1, GL_R32F, 256, 256);
+    glTextureParameteri(causticTexture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(causticTexture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureSubImage2D(causticTexture, 0, 0, 0, 256, 256, GL_RED, GL_FLOAT, &v[0]);
+    glNamedFramebufferTexture(causticFBO, GL_COLOR_ATTACHMENT0, causticTexture, 0);
+
+    glNamedFramebufferDrawBuffers(causticFBO, 1, drawBuffer);
+
+    if (GL_FRAMEBUFFER_COMPLETE != glCheckNamedFramebufferStatus(causticFBO, GL_DRAW_FRAMEBUFFER))
+    {
+        std::cout << " FBO ERROR \n";
+    }
+
+}
+
 void ManualPBRRenderer::initWater() {
 
     // REMOVE
@@ -416,25 +461,7 @@ void ManualPBRRenderer::initWater() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glBindVertexArray(0);
   
-    glGenFramebuffers(2, waterHeightFBO);
-
-    // The texture we're going to render to
-    glGenTextures(2, waterHeightTexture);
-
-    for (GLuint i = 0; i < 2; i++)
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, waterHeightFBO[i]);
-        glBindTexture(GL_TEXTURE_2D, waterHeightTexture[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 256, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, waterHeightTexture[i], 0);
-        GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
-        glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
-        // Always check that our framebuffer is ok
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
-    }
+ 
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -531,9 +558,11 @@ void ManualPBRRenderer::renderWater() {
         waterShader->setMat4(std::string(prefix + "].model"s), physicScene->physicalObjects[i]->model);
 
     }
-    waterShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(model))));
+    waterShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(physicScene->water->modelWater))));
     waterShader->setFloat("u_dx", physicScene->water->spacing / physicScene->water->sizea);
     waterShader->setFloat("u_dz", physicScene->water->spacing / physicScene->water->sizeb);
+    waterShader->setFloat("u_overrideFresnel",overrideFresnel);
+    waterShader->setFloat("u_fresnel",fresnel);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[1-physicScene->water->toggle]);
@@ -551,16 +580,71 @@ void ManualPBRRenderer::renderWater() {
     physicScene->water->render();
 
     // DEBUG
-    glViewport(0, 0, physicScene->water->numX, physicScene->water->numZ);
+    glViewport(0, 0, 256,256);
     debugTextureShader->use();
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[1-physicScene->water->toggle]);
-   
-    defferedQuad->render();
+    //glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[0]);
+     //glBindTexture(GL_TEXTURE_2D, causticTexture);
+     glBindTexture(GL_TEXTURE_2D, physicScene->water->bodyChangeTexture);
+
+
+    //defferedQuad->render();
 
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 
 }
+
+//void ManualPBRRenderer::renderCaustics() {
+//
+//    causticsShader->use();
+//
+//    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, causticFBO);
+//
+//    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//
+//    causticsShader->setMat4("view", projection);
+//    causticsShader->setMat4("model", physicScene->water->modelWater);
+//    causticsShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(physicScene->water->modelWater))));
+//
+//    causticsShader->setFloat("u_dx", physicScene->water->spacing / physicScene->water->sizea);
+//    causticsShader->setFloat("u_dz", physicScene->water->spacing / physicScene->water->sizeb);
+//
+//    glActiveTexture(GL_TEXTURE0);
+//    glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[1 - physicScene->water->toggle]);
+//
+//    physicScene->water->render();  
+//
+//    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+//
+//
+//}
+//
+
+void ManualPBRRenderer::renderCaustics() {
+
+    causticsShader->use();
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, causticFBO);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    causticsShader->setMat4("view", projection);
+    causticsShader->setMat4("model", physicScene->water->modelWater);
+    causticsShader->setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(physicScene->water->modelWater))));
+
+    causticsShader->setFloat("u_dx", physicScene->water->spacing / physicScene->water->sizea);
+    causticsShader->setFloat("u_dz", physicScene->water->spacing / physicScene->water->sizeb);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, physicScene->water->waterHeightTexture[1 - physicScene->water->toggle]);
+
+    physicScene->water->render();
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+
+}
+
 
 bool ManualPBRRenderer::isClickOnWater()
 {
@@ -609,10 +693,14 @@ bool ManualPBRRenderer::isClickOnWater()
 void ManualPBRRenderer::displayUI()
 {
     ImGui::Begin("ImGui Window");
-    ImGui::Text("Text");
-    ImGui::Checkbox("DrawTriangle", &drawTriangle);
+    ImGui::Text("Fresnel");
+    ImGui::Checkbox("OverrideFresnel", &overrideFresnel);
+    ImGui::SliderFloat("Fresnel", &fresnel, 0.0f, 1.0f);
+    ImGui::Text("PBR");
     ImGui::SliderFloat("Rougness", &roughness, 0.0f, 1.0f);
     ImGui::SliderFloat("Metallic", &metallic, 0.05f, 1.0f);
+    ImGui::Text("Physic");
+    ImGui::SliderFloat("Ball Mass", &ballMass, 0.01f, 2.0f);
 
 }
 

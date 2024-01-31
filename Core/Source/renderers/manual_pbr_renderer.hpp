@@ -58,8 +58,6 @@ public:
     ManualPBRRenderer() : BaseRenderer(){}
 
     ~ManualPBRRenderer(){   
-        glDeleteProgram(lightingShader->ID);
-        glDeleteProgram(lightCubeShader->ID);
         glDeleteProgram(skyboxShader->ID);
         glDeleteProgram(waterShader->ID);
     }
@@ -109,14 +107,14 @@ public:
     // build and compile our shader zprogram
    // ------------------------------------
     const std::string shaderFolder = "src/shaders/";
-    Shader* lightingShader = NULL;
-    Shader* lightCubeShader = NULL;
     Shader* skyboxShader = NULL;
     Shader* waterShader = NULL;
   
     Shader* debugTextureShader = NULL;
     Shader* wallShader = NULL;
     Shader* normalShader = NULL;
+    Shader* causticsShader = NULL;
+
 
     FrameBuffer* fboClass;
 
@@ -143,8 +141,10 @@ public:
     Mat4f modelTop = MAT4F_ID;
     Mat4f modelBot = MAT4F_ID;
 
-    GLuint waterHeightFBO[2];
-    GLuint waterHeightTexture[2];
+    GLuint causticFBO;
+    GLuint causticTexture;
+
+    std::vector<float> causticsIntensity;
 
 
     Vec3f colorBack = Vec3f(1.f, 1.0f, 1.0f);
@@ -160,13 +160,17 @@ public:
 
     float nb_meshes_gpu;
 
-
     short toggle = 1;
 
     //IMGUI VARIABLES
-    bool drawTriangle = true;
+    float ballMass = 1.f;
+    bool overrideFresnel = false;
+    float fresnel = 0.5f;
+  
     float roughness = 0.5f;
     float metallic = 0.5f;
+
+   
 
     void init() override;
     void render() override;
@@ -181,6 +185,10 @@ public:
     void initCornellBox();
 
     void initWater();
+    void initCaustics();
+
+    void renderCaustics();
+
     void renderWater();
 
     void renderSphere();
